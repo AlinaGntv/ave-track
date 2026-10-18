@@ -5,29 +5,28 @@ import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react
 import { createPortal } from "react-dom";
 import { spring } from "./motion";
 import { lockPageScroll } from "./scroll";
+import { keyboardSheetFrame, type SheetFrame } from "./sheet-geometry";
 
 const subscribe = () => () => {};
 
-/**
- * Высота экранной клавиатуры. В iOS Safari клавиатура не уменьшает layout viewport,
- * и fixed-элемент у нижнего края оказывается под ней — поднимаем sheet на эту высоту.
- */
-function useKeyboardInset(active: boolean): number {
-  const [inset, setInset] = useState(0);
+/** Где должен стоять sheet, пока открыта экранная клавиатура (см. sheet-geometry.ts). */
+function useKeyboardFrame(active: boolean): SheetFrame | null {
+  const [frame, setFrame] = useState<SheetFrame | null>(null);
   useEffect(() => {
     const vv = window.visualViewport;
     if (!active || !vv) return;
-    const update = () => setInset(Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop)));
+    const update = () =>
+      setFrame(keyboardSheetFrame({ innerHeight: window.innerHeight, height: vv.height, offsetTop: vv.offsetTop }));
     update();
     vv.addEventListener("resize", update);
     vv.addEventListener("scroll", update);
     return () => {
       vv.removeEventListener("resize", update);
       vv.removeEventListener("scroll", update);
-      setInset(0);
+      setFrame(null);
     };
   }, [active]);
-  return inset;
+  return frame;
 }
 
 /**
@@ -49,7 +48,7 @@ export function BottomSheet({
 }) {
   const mounted = useSyncExternalStore(subscribe, () => true, () => false);
   const controls = useDragControls();
-  const keyboard = useKeyboardInset(open);
+  const keyboard = useKeyboardFrame(open);
 
   useEffect(() => {
     if (!open) return;
@@ -83,8 +82,16 @@ export function BottomSheet({
             aria-modal
             aria-label={label}
             style={
-              keyboard > 0
-                ? { bottom: keyboard, maxHeight: `calc(100dvh - ${keyboard}px - 12px)`, paddingBottom: 0 }
+              keyboard
+                ? {
+                    // Клавиатура открыта: sheet занимает ровно видимую область над ней,
+                    // с отступом под вырез — шапка и первые поля всегда на экране
+                    top: `calc(${keyboard.top}px + env(safe-area-inset-top) + 8px)`,
+                    height: `calc(${keyboard.height}px - env(safe-area-inset-top) - 8px)`,
+                    bottom: "auto",
+                    maxHeight: "none",
+                    paddingBottom: 0,
+                  }
                 : undefined
             }
             className="pb-safe fixed inset-x-0 bottom-0 z-50 mx-auto flex max-h-[92dvh] max-w-md flex-col rounded-t-[32px] bg-bg shadow-soft md:bottom-4 md:rounded-[32px]"
