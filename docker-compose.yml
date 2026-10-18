@@ -1,0 +1,38 @@
+# docker compose up -d --build
+# web и worker работают с одним файлом SQLite в общем томе avetrack-data (WAL-режим).
+services:
+  web:
+    build:
+      context: .
+      target: web
+    image: avetrack-web
+    env_file: .env
+    environment:
+      DATABASE_PATH: /data/avetrack.db
+    ports:
+      # Наружу — через reverse proxy с HTTPS (см. README). Открыть порт всем: "3000:3000"
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - avetrack-data:/data
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      target: worker
+    image: avetrack-worker
+    env_file: .env
+    environment:
+      DATABASE_PATH: /data/avetrack.db
+      BACKUP_DIR: /backups
+    volumes:
+      - avetrack-data:/data
+      # Бэкапы попадают на хост в ./backups (см. README: docker compose exec worker npm run backup)
+      - ./backups:/backups
+    depends_on:
+      web:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  avetrack-data:

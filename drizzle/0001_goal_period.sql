@@ -1,0 +1,1 @@
+ALTER TABLE `money_goals` ADD `period` text;

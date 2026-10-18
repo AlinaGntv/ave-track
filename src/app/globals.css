@@ -1,0 +1,117 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Палитра строго ч/б. «ink» — тёмные карточки из дизайна; в тёмной теме они инвертируются в светлые. */
+:root {
+  --bg: #ffffff;
+  --surface: #f6f6f8;
+  --card: #ffffff;
+  --surface-2: #ececf0;
+  --fg: #1e1e1f;
+  --muted: #a3a3a8;
+  --muted-2: #6f6f75;
+  --line: #ececef;
+  --ink: #2b2b2c;
+  --on-ink: #ffffff;
+  --on-ink-muted: rgba(255, 255, 255, 0.72);
+  --shadow: 0 10px 30px -12px rgba(20, 20, 30, 0.18);
+  color-scheme: light;
+}
+
+.dark {
+  --bg: #0c0c0d;
+  --surface: #18181a;
+  --card: #18181a;
+  --surface-2: #232326;
+  --fg: #f3f3f4;
+  --muted: #6f6f76;
+  --muted-2: #9c9ca3;
+  --line: #242427;
+  --ink: #f1f1f2;
+  --on-ink: #141415;
+  --on-ink-muted: rgba(20, 20, 21, 0.65);
+  --shadow: 0 10px 30px -12px rgba(0, 0, 0, 0.6);
+  color-scheme: dark;
+}
+
+@theme inline {
+  --font-sans: var(--font-montserrat), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-card: var(--card);
+  --color-surface-2: var(--surface-2);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-muted-2: var(--muted-2);
+  --color-line: var(--line);
+  --color-ink: var(--ink);
+  --color-on-ink: var(--on-ink);
+  --color-on-ink-muted: var(--on-ink-muted);
+  --shadow-soft: var(--shadow);
+  --radius-card: 28px;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    min-height: 100dvh;
+    overscroll-behavior-y: none;
+    -webkit-font-smoothing: antialiased;
+  }
+  /* ≥16px — iOS не зумит страницу при фокусе */
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+  button {
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  /* Элементы управления ведут себя как в нативном приложении: без выделения текста
+     и без системного меню по долгому нажатию (мешает перетаскиванию и свайпам) */
+  button,
+  a,
+  nav,
+  [role="radio"],
+  [role="switch"] {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+  @media (min-width: 768px) {
+    /* Десктоп: приложение — колонка по центру на сером фоне, как макет телефона */
+    body {
+      background: var(--surface);
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@utility pt-safe {
+  padding-top: env(safe-area-inset-top);
+}
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}

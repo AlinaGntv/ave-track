@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0c0c0d" media="(prefers-color-scheme: dark)" />
+    <title>AveTrack — нет сети</title>
+    <style>
+      :root { --bg: #fff; --fg: #1e1e1f; --muted: #6f6f75; --ink: #2b2b2c; --on-ink: #fff; color-scheme: light dark; }
+      @media (prefers-color-scheme: dark) {
+        :root { --bg: #0c0c0d; --fg: #f3f3f4; --muted: #9c9ca3; --ink: #f1f1f2; --on-ink: #141415; }
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0; min-height: 100dvh; display: grid; place-items: center; padding: 24px;
+        background: var(--bg); color: var(--fg);
+        font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; text-align: center;
+      }
+      .mark { width: 64px; height: 64px; margin: 0 auto 20px; }
+      h1 { font-size: 24px; margin: 0 0 8px; }
+      p { margin: 0 0 24px; color: var(--muted); line-height: 1.5; }
+      button {
+        height: 52px; padding: 0 28px; border: 0; border-radius: 18px; font: inherit; font-weight: 600;
+        background: var(--ink); color: var(--on-ink); cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <svg class="mark" viewBox="0 0 64 64" aria-hidden="true">
+        <circle cx="32" cy="32" r="26" fill="none" stroke="currentColor" stroke-width="4" />
+        <circle cx="32" cy="32" r="15" fill="currentColor" />
+      </svg>
+      <h1>Нет соединения</h1>
+      <p>AveTrack откроется, как только появится сеть.</p>
+      <button type="button" onclick="location.reload()">Повторить</button>
+    </main>
+  </body>
+</html>
