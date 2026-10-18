@@ -18,7 +18,7 @@ export function ListHeaderActions({ list, isInbox }: { list: ListItem; isInbox: 
       <Pressable
         aria-label="Настроить список"
         onClick={() => setEditor((e) => ({ key: (e?.key ?? 0) + 1, open: true }))}
-        className="mb-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-surface"
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-surface"
       >
         <Ellipsis size={20} />
       </Pressable>

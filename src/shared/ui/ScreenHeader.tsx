@@ -1,6 +1,7 @@
 import { ChevronLeft } from "lucide-react";
 import type { ReactNode } from "react";
 import { PressableLink } from "./Pressable";
+import { RefreshButton } from "./RefreshButton";
 
 /** Шапка экрана как на «Today» из дизайна: мелкая подпись + крупный заголовок. */
 export function ScreenHeader({
@@ -8,11 +9,14 @@ export function ScreenHeader({
   title,
   right,
   back,
+  refresh = true,
 }: {
   caption?: string;
   title: string;
   right?: ReactNode;
   back?: { href: string; label: string };
+  /** Кнопка «Обновить» справа (на экранах с данными) */
+  refresh?: boolean;
 }) {
   return (
     <header className="px-6 pt-8 pb-4">
@@ -30,7 +34,12 @@ export function ScreenHeader({
           {caption && <p className="text-sm font-medium text-muted-2 first-letter:uppercase">{caption}</p>}
           <h1 className="mt-1 truncate text-[32px] leading-tight font-bold tracking-tight">{title}</h1>
         </div>
-        {right}
+        {(refresh || right) && (
+          <div className="-mr-1.5 flex shrink-0 items-center gap-1 pb-0.5">
+            {refresh && <RefreshButton />}
+            {right}
+          </div>
+        )}
       </div>
     </header>
   );

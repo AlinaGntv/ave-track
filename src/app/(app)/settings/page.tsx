@@ -13,7 +13,7 @@ export default function SettingsPage() {
   const settings = getSettings();
   return (
     <>
-      <ScreenHeader caption="AveTrack" title="Настройки" />
+      <ScreenHeader caption="AveTrack" title="Настройки" refresh={false} />
 
       <SectionTitle title="Оформление" />
       <div className="px-6">

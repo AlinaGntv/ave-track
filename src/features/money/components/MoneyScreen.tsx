@@ -89,7 +89,7 @@ export function MoneyScreen({
           <Pressable
             aria-label="Добавить доход"
             onClick={() => entrySheet.open(undefined)}
-            className="mb-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-ink text-on-ink"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-ink text-on-ink"
           >
             <Plus size={20} />
           </Pressable>

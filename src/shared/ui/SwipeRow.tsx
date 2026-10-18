@@ -2,31 +2,23 @@
 
 import { animate, motion, useMotionValue, useMotionValueEvent, useTransform } from "framer-motion";
 import type { LucideIcon } from "lucide-react";
-import { useRef, useState, type ReactNode } from "react";
+import { useRef, useState, type PointerEvent, type ReactNode } from "react";
 import { haptic } from "@/shared/lib/haptics";
 import { cn } from "@/shared/lib/cn";
 import { spring } from "./motion";
+import { decideGesture, LEAD, LEAD_FULL, stageOf, TRAIL, type GestureMode, type SwipeStage } from "./swipe-gesture";
 
 export type SwipeAction = { icon: LucideIcon; label: string; onTrigger: () => void };
 
-/** Пороги в px: короткий свайп вправо, длинный вправо, свайп влево */
-const LEAD = 64;
-const LEAD_FULL = 150;
-const TRAIL = -96;
-
-type Stage = "none" | "lead" | "leadFull" | "trail";
-
-function stageOf(x: number, has: { lead: boolean; full: boolean; trail: boolean }): Stage {
-  if (has.full && x >= LEAD_FULL) return "leadFull";
-  if (has.lead && x >= LEAD) return "lead";
-  if (has.trail && x <= TRAIL) return "trail";
-  return "none";
-}
+type Gesture = { id: number; startX: number; startY: number; mode: GestureMode };
 
 /**
  * Строка со свайпами, как в iOS: вправо — короткое действие (флажок),
  * дальше — полное (выполнить); влево — удаление (строка уезжает за край).
- * Двигается только transform; вертикальный скролл не блокируется (direction lock).
+ *
+ * Жест распознаётся вручную, а не через drag Framer Motion: строка становится свайпом
+ * только при явно горизонтальном движении, любое вертикальное отдаётся прокрутке страницы
+ * (touch-action: pan-y). Действие определяется по реальному сдвигу строки.
  */
 export function SwipeRow({
   lead,
@@ -42,8 +34,9 @@ export function SwipeRow({
   children: ReactNode;
 }) {
   const x = useMotionValue(0);
-  const [stage, setStage] = useState<Stage>("none");
-  const dragged = useRef(false);
+  const [stage, setStage] = useState<SwipeStage>("none");
+  const gesture = useRef<Gesture | null>(null);
+  const suppressClick = useRef(false);
   const has = { lead: !!lead, full: !!leadFull, trail: !!trail };
 
   useMotionValueEvent(x, "change", (value) => {
@@ -60,8 +53,61 @@ export function SwipeRow({
   const LeadIcon = leadAction?.icon;
   const TrailIcon = trail?.icon;
 
+  const onPointerDown = (e: PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    gesture.current = { id: e.pointerId, startX: e.clientX, startY: e.clientY, mode: "pending" };
+  };
+
+  const onPointerMove = (e: PointerEvent<HTMLDivElement>) => {
+    const g = gesture.current;
+    if (!g || g.id !== e.pointerId || g.mode === "scroll") return;
+    const dx = e.clientX - g.startX;
+    const dy = e.clientY - g.startY;
+
+    if (g.mode === "pending") {
+      g.mode = decideGesture(dx, dy, has.lead || has.full, has.trail);
+      if (g.mode !== "swipe") return; // ещё не ясно или это прокрутка — строку не трогаем
+      g.startX = e.clientX; // без рывка на величину порога распознавания
+      try {
+        e.currentTarget.setPointerCapture(e.pointerId); // палец может уйти за пределы строки
+      } catch {
+        // указатель уже отпущен — жест просто закончится обычным pointerup
+      }
+    }
+
+    // Нельзя тянуть в сторону, где нет действия; за порогом — лёгкое сопротивление
+    let offset = e.clientX - g.startX;
+    if (offset > 0 && !(has.lead || has.full)) offset = 0;
+    if (offset < 0 && !has.trail) offset = 0;
+    const limit = offset > 0 ? LEAD_FULL + 40 : Math.abs(TRAIL) + 60;
+    if (Math.abs(offset) > limit) offset = Math.sign(offset) * (limit + (Math.abs(offset) - limit) * 0.25);
+    x.set(offset);
+  };
+
+  const finish = (e: PointerEvent<HTMLDivElement>, cancelled: boolean) => {
+    const g = gesture.current;
+    if (!g || g.id !== e.pointerId) return;
+    gesture.current = null;
+    if (g.mode !== "swipe") return;
+
+    suppressClick.current = true;
+    setTimeout(() => (suppressClick.current = false), 80);
+
+    const final = cancelled ? "none" : stageOf(x.get(), has);
+    if (final === "trail" && trail) {
+      // Удаление: строка уезжает за левый край. Действие — по таймеру, а не по окончании
+      // анимации: если анимацию что-то прервёт, удаление всё равно не потеряется
+      void animate(x, -window.innerWidth, spring.smooth);
+      setTimeout(() => trail.onTrigger(), 180);
+      return;
+    }
+    void animate(x, 0, spring.smooth);
+    if (final === "leadFull") leadFull?.onTrigger();
+    else if (final === "lead") lead?.onTrigger();
+  };
+
   return (
-    <div className={cn("relative overflow-hidden", className)}>
+    <div className={cn("relative overflow-hidden select-none", className)}>
       <div className="absolute inset-0 flex items-center justify-between bg-ink px-6 text-on-ink" aria-hidden>
         <motion.span style={{ opacity: leadOpacity }} className="flex items-center gap-2 text-[13px] font-bold">
           {LeadIcon && (
@@ -84,30 +130,13 @@ export function SwipeRow({
 
       <motion.div
         style={{ x, touchAction: "pan-y" }}
-        drag="x"
-        dragDirectionLock
-        dragMomentum={false}
-        dragElastic={0}
-        onDragStart={() => {
-          dragged.current = true;
-        }}
-        onDragEnd={(_, info) => {
-          const final = stageOf(info.offset.x, has);
-          if (final === "trail" && trail) {
-            // Удаление: строка уезжает за левый край, затем действие
-            void animate(x, -window.innerWidth, { ...spring.smooth, velocity: info.velocity.x }).then(() =>
-              trail.onTrigger(),
-            );
-          } else {
-            void animate(x, 0, spring.smooth);
-            if (final === "leadFull") leadFull?.onTrigger();
-            else if (final === "lead") lead?.onTrigger();
-          }
-          // Клик, который браузер пришлёт после отпускания, не должен открывать задачу
-          setTimeout(() => (dragged.current = false), 50);
-        }}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={(e) => finish(e, false)}
+        onPointerCancel={(e) => finish(e, true)}
         onClickCapture={(e) => {
-          if (dragged.current) {
+          // Клик, который браузер присылает после свайпа, не должен открывать задачу
+          if (suppressClick.current) {
             e.stopPropagation();
             e.preventDefault();
           }

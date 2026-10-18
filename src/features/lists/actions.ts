@@ -26,3 +26,9 @@ export async function deleteListAction(listId: number): Promise<void> {
   revalidatePath("/", "layout");
   redirect("/");
 }
+
+/** Удаление с главной (свайпом): без перехода, страница просто обновляется. */
+export async function removeListAction(listId: number): Promise<void> {
+  deleteList(id.parse(listId));
+  revalidatePath("/", "layout");
+}

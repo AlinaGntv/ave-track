@@ -1,6 +1,6 @@
 import { ListsSection } from "@/features/lists/components/ListsSection";
 import { SmartListTiles } from "@/features/lists/components/SmartListTiles";
-import { getLists } from "@/features/lists/server";
+import { getInboxListId, getLists } from "@/features/lists/server";
 import { HomeMoneyHero } from "@/features/money/components/HomeMoneyHero";
 import { getMoneyOverview, getRecentNotes } from "@/features/money/server";
 import { getSettings } from "@/features/settings/server";
@@ -9,6 +9,7 @@ import { SendReportButton } from "@/features/telegram/components/SendReportButto
 import { getTelegramConfig } from "@/features/telegram/config";
 import { countCompleted, getOpenTasks } from "@/features/tasks/server";
 import { formatDate, todayIn } from "@/shared/lib/dates";
+import { RefreshButton } from "@/shared/ui/RefreshButton";
 import { SectionTitle } from "@/shared/ui/ScreenHeader";
 
 export default function HomePage() {
@@ -23,7 +24,10 @@ export default function HomePage() {
     <div className="pt-4">
       <div className="flex items-center justify-between gap-3 pr-4 pb-3 pl-6">
         <p className="text-sm font-medium text-muted-2">{formatDate(today, "d MMMM, EEEE")}</p>
-        {getTelegramConfig() && <SendReportButton />}
+        <div className="flex items-center">
+          <RefreshButton size="sm" />
+          {getTelegramConfig() && <SendReportButton />}
+        </div>
       </div>
       <HomeMoneyHero
         totals={money.totals}
@@ -36,7 +40,7 @@ export default function HomePage() {
       <SectionTitle title="Задачи" />
       <SmartListTiles counts={counts} completed={countCompleted()} />
 
-      <ListsSection lists={getLists()} />
+      <ListsSection lists={getLists()} inboxId={getInboxListId()} />
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { AnimatePresence, motion, useDragControls } from "framer-motion";
 import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { spring } from "./motion";
+import { lockPageScroll } from "./scroll";
 
 const subscribe = () => () => {};
 
@@ -53,11 +54,10 @@ export function BottomSheet({
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    const unlock = lockPageScroll();
     window.addEventListener("keydown", onKey);
     return () => {
-      document.body.style.overflow = prevOverflow;
+      unlock();
       window.removeEventListener("keydown", onKey);
     };
   }, [open, onClose]);

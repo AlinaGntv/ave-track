@@ -3,6 +3,7 @@ import { getInboxListId, getLists } from "@/features/lists/server";
 import { getSettings } from "@/features/settings/server";
 import { TaskEditorProvider } from "@/features/tasks/components/TaskEditorProvider";
 import { todayIn } from "@/shared/lib/dates";
+import { AutoRefresh } from "@/shared/ui/RefreshButton";
 import { TabBar } from "@/shared/ui/TabBar";
 
 // Все экраны читают SQLite на каждый запрос — статическая генерация не нужна
@@ -18,6 +19,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         {children}
       </main>
       <TabBar />
+      <AutoRefresh />
     </TaskEditorProvider>
   );
 }
