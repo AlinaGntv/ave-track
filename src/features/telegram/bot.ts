@@ -69,6 +69,12 @@ export async function sendMoneyReport(api: Api, config: TelegramConfig, today: s
   await api.sendMessage(config.chatId, msg.text, markup(msg));
 }
 
+/** Отчёт по запросу из приложения: задачи на сегодня (с кнопками «✓»), затем доходы за месяц. */
+export async function sendReport(api: Api, config: TelegramConfig, today: string) {
+  await sendDigest(api, config, today, "today");
+  await sendMoneyReport(api, config, today);
+}
+
 export async function sendReminder(api: Api, config: TelegramConfig, taskId: number) {
   const task = getOpenTasks().find((t) => t.id === taskId);
   if (!task) return;

@@ -318,3 +318,17 @@ describe("вечерняя сводка", () => {
     expect(money).toMatch(/^💰 <b>Доходы за /);
   });
 });
+
+describe("отчёт по кнопке из приложения", () => {
+  it("два сообщения: задачи на сегодня с кнопками «✓», затем доходы за месяц", async () => {
+    const id = newTask({ title: "Задача для отчёта", dueDate: today });
+    await m.bot.sendReport(bot.api, config, today);
+    const messages = sent("sendMessage");
+    expect(messages).toHaveLength(2);
+    expect(textOf(messages[0])).toMatch(/^📋 <b>/);
+    expect(textOf(messages[0])).toContain("Задача для отчёта");
+    expect(buttons(messages[0])).toContain(`done:${id}:${today}`);
+    expect(textOf(messages[1])).toMatch(/^💰 <b>Доходы за /);
+    expect(messages.every((c) => c.payload.chat_id === CHAT)).toBe(true);
+  });
+});

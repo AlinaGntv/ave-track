@@ -5,6 +5,8 @@ import { HomeMoneyHero } from "@/features/money/components/HomeMoneyHero";
 import { getMoneyOverview, getRecentNotes } from "@/features/money/server";
 import { getSettings } from "@/features/settings/server";
 import { countSmartLists } from "@/features/tasks/model";
+import { SendReportButton } from "@/features/telegram/components/SendReportButton";
+import { getTelegramConfig } from "@/features/telegram/config";
 import { countCompleted, getOpenTasks } from "@/features/tasks/server";
 import { formatDate, todayIn } from "@/shared/lib/dates";
 import { SectionTitle } from "@/shared/ui/ScreenHeader";
@@ -19,7 +21,10 @@ export default function HomePage() {
 
   return (
     <div className="pt-4">
-      <p className="px-6 pb-3 text-sm font-medium text-muted-2">{formatDate(today, "d MMMM, EEEE")}</p>
+      <div className="flex items-center justify-between gap-3 pr-4 pb-3 pl-6">
+        <p className="text-sm font-medium text-muted-2">{formatDate(today, "d MMMM, EEEE")}</p>
+        {getTelegramConfig() && <SendReportButton />}
+      </div>
       <HomeMoneyHero
         totals={money.totals}
         goal={goal}
