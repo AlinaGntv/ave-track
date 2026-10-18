@@ -17,6 +17,10 @@ const settingsSchema = z.object({
     .regex(/^([01]\d|2[0-3]):[0-5]\d$/)
     .default("18:00"),
   eveningEnabled: z.boolean().default(true),
+  /** Премиум-эмодзи для сообщений бота: слот → { id, alt } (настраивается командой /emoji) */
+  customEmoji: z
+    .record(z.string(), z.object({ id: z.string().regex(/^\d{1,30}$/), alt: z.string().min(1).max(16) }))
+    .default({}),
   currency: z.string().length(3).default("EUR"),
   inboxListId: z.number().int().nullable().default(null),
 });

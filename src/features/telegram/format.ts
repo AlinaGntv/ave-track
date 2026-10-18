@@ -6,6 +6,9 @@ import { plural } from "@/features/recurrence/describe";
 import { formatDayTitle, formatDueLabel, PRIORITIES, type Priority } from "@/features/tasks/model";
 import { formatDate } from "@/shared/lib/dates";
 import { formatMoney } from "@/shared/lib/money";
+import { emojiRenderer, type CustomEmojiMap, type EmojiSlot } from "./emoji";
+
+type Emoji = (slot: EmojiSlot) => string;
 
 export type InlineButton = { text: string; callback_data: string } | { text: string; url: string };
 export type BotMessage = { text: string; keyboard: InlineButton[][] };
@@ -39,11 +42,15 @@ function truncate(s: string, max: number): string {
   return s.length > max ? `${s.slice(0, max - 1)}…` : s;
 }
 
-/** Callback-кнопки: done:<id>:<дата сводки> — после нажатия сводка за эту дату перерисовывается */
-export const DIGEST_DONE = /^done:(\d+):(\d{4}-\d{2}-\d{2})$/;
+/**
+ * Callback-кнопки: done:<id>:<дата сводки>:<вариант> — после нажатия сводка за эту дату
+ * перерисовывается тем же вариантом. Вариант (m/t/e/w) может отсутствовать у кнопок
+ * из старых сообщений — тогда он определяется по тексту (variantOfMessage).
+ */
+export const DIGEST_DONE = /^done:(\d+):(\d{4}-\d{2}-\d{2})(?::([mtew]))?$/;
 export const REMINDER_DONE = /^rdone:(\d+)$/;
 
-function itemLine(item: DigestItem, date: string): string {
+function itemLine(item: DigestItem, date: string, e: Emoji): string {
   const marks = PRIORITIES[item.priority]?.marks;
   const title = escapeHtml(item.title);
   const prefix = marks ? `<b>${marks}</b> ` : "";
@@ -53,14 +60,14 @@ function itemLine(item: DigestItem, date: string): string {
       extras.push(`<i>просрочено, ${formatDueLabel(item.dueDate, null, date)?.toLowerCase()}</i>`);
     }
     if (item.dueTime) extras.push(item.dueTime);
-    if (item.recurring) extras.push("🔁");
+    if (item.recurring) extras.push(e("repeat"));
     if (item.flagged) extras.push("⚑");
-    return `◻️ ${prefix}${title}${extras.length ? ` · ${extras.join(" · ")}` : ""}`;
+    return `${e("open")} ${prefix}${title}${extras.length ? ` · ${extras.join(" · ")}` : ""}`;
   }
   if (item.status === "rescheduled" && item.nextDue) {
-    return `✅ <s>${title}</s> · 🔁 ${formatDayTitle(item.nextDue, date).toLowerCase()}`;
+    return `${e("done")} <s>${title}</s> · ${e("repeat")} ${formatDayTitle(item.nextDue, date).toLowerCase()}`;
   }
-  return `✅ <s>${title}</s>`;
+  return `${e("done")} <s>${title}</s>`;
 }
 
 /** Порядок внутри списка: невыполненные по сроку, затем выполненные */
@@ -75,36 +82,39 @@ function compareItems(a: DigestItem, b: DigestItem): number {
   return b.priority - a.priority || a.id - b.id;
 }
 
-/**
- * Варианты сводки. Эмодзи в начале заголовка — ещё и метка варианта: по нему бот
- * понимает, как перерисовать сообщение после нажатия «✓» (см. variantOfMessage).
- */
+/** Варианты сводки: утренняя, по запросу, вечерняя «не выполнено», на завтра. */
 export type DigestVariant = "morning" | "today" | "evening" | "tomorrow";
+
+/** Короткий код варианта для callback_data (лимит Telegram — 64 байта) */
+export const VARIANT_CODE: Record<DigestVariant, string> = { morning: "m", today: "t", evening: "e", tomorrow: "w" };
+export const VARIANT_BY_CODE = Object.fromEntries(
+  Object.entries(VARIANT_CODE).map(([variant, code]) => [code, variant]),
+) as Record<string, DigestVariant>;
 
 const VARIANTS: Record<
   DigestVariant,
-  (day: string) => { header: string; empty: string; allDone: string; openLabel: string }
+  (day: string, e: Emoji) => { header: string; empty: string; allDone: string; openLabel: string }
 > = {
-  morning: (day) => ({
-    header: `☀️ <b>Доброе утро!</b>\n${day}`,
+  morning: (day, e) => ({
+    header: `${e("morning")} <b>Доброе утро!</b>\n${day}`,
     empty: "На сегодня задач нет — свободный день.",
     allDone: "Всё сделано 🎉",
     openLabel: "Задач",
   }),
-  today: (day) => ({
-    header: `📋 <b>${day}</b>`,
+  today: (day, e) => ({
+    header: `${e("today")} <b>${day}</b>`,
     empty: "На сегодня задач нет — свободный день.",
     allDone: "Всё сделано 🎉",
     openLabel: "Задач",
   }),
-  evening: (day) => ({
-    header: `🌙 <b>Не выполнено сегодня</b>\n${day}`,
+  evening: (day, e) => ({
+    header: `${e("evening")} <b>Не выполнено сегодня</b>\n${day}`,
     empty: "Все задачи на сегодня выполнены 🎉",
     allDone: "Всё доделано 🎉",
     openLabel: "Осталось",
   }),
-  tomorrow: (day) => ({
-    header: `📅 <b>Задачи на завтра</b>\n${day}`,
+  tomorrow: (day, e) => ({
+    header: `${e("tomorrow")} <b>Задачи на завтра</b>\n${day}`,
     empty: "На завтра задач нет.",
     allDone: "Всё уже сделано 🎉",
     openLabel: "Задач",
@@ -117,7 +127,7 @@ const VARIANT_MARKS: Array<[string, DigestVariant]> = [
   ["📅", "tomorrow"],
 ];
 
-/** Вариант сводки по тексту уже отправленного сообщения. */
+/** Вариант сводки по тексту уже отправленного сообщения (для кнопок без кода варианта). */
 export function variantOfMessage(text: string | undefined): DigestVariant {
   return VARIANT_MARKS.find(([mark]) => text?.startsWith(mark))?.[1] ?? "today";
 }
@@ -128,6 +138,7 @@ export function buildDigest({
   lists,
   appUrl,
   variant,
+  emoji,
 }: {
   /** Дата сводки "YYYY-MM-DD" */
   date: string;
@@ -136,9 +147,12 @@ export function buildDigest({
   lists: Array<{ id: number; name: string }>;
   appUrl?: string | null;
   variant: DigestVariant;
+  /** Премиум-эмодзи пользователя; без них — обычные */
+  emoji?: CustomEmojiMap;
 }): BotMessage {
+  const e = emojiRenderer(emoji);
   const day = capitalize(formatDate(date, "EEEE, d MMMM"));
-  const { header, empty, allDone, openLabel } = VARIANTS[variant](day);
+  const { header, empty, allDone, openLabel } = VARIANTS[variant](day, e);
   const appRow: InlineButton[][] = appUrl ? [[{ text: "Открыть AveTrack", url: appUrl }]] : [];
 
   if (items.length === 0) {
@@ -158,7 +172,7 @@ export function buildDigest({
   for (const list of lists) {
     const group = items.filter((i) => i.listId === list.id).sort(compareItems);
     if (group.length === 0) continue;
-    const lines = [`<b>${escapeHtml(list.name)}</b>`, ...group.map((i) => itemLine(i, date))];
+    const lines = [`<b>${escapeHtml(list.name)}</b>`, ...group.map((i) => itemLine(i, date, e))];
     const block = lines.join("\n");
     if (length + block.length > MAX_TEXT) {
       hidden += group.length;
@@ -171,7 +185,7 @@ export function buildDigest({
 
   const sortedOpen = lists.flatMap((l) => open.filter((i) => i.listId === l.id).sort(compareItems));
   const keyboard: InlineButton[][] = sortedOpen.slice(0, MAX_BUTTONS).map((item) => [
-    { text: `✓ ${truncate(item.title, BUTTON_TITLE)}`, callback_data: `done:${item.id}:${date}` },
+    { text: `✓ ${truncate(item.title, BUTTON_TITLE)}`, callback_data: `done:${item.id}:${date}:${VARIANT_CODE[variant]}` },
   ]);
 
   return {
@@ -180,17 +194,22 @@ export function buildDigest({
   };
 }
 
-export function buildReminder(item: { id: number; title: string; notes: string | null; dueTime: string | null; priority: Priority }): BotMessage {
+export function buildReminder(
+  item: { id: number; title: string; notes: string | null; dueTime: string | null; priority: Priority },
+  emoji?: CustomEmojiMap,
+): BotMessage {
+  const e = emojiRenderer(emoji);
   const marks = PRIORITIES[item.priority]?.marks;
-  const lines = [`⏰ <b>${item.dueTime ?? ""}</b> · ${marks ? `<b>${marks}</b> ` : ""}${escapeHtml(item.title)}`];
+  const lines = [`${e("reminder")} <b>${item.dueTime ?? ""}</b> · ${marks ? `<b>${marks}</b> ` : ""}${escapeHtml(item.title)}`];
   if (item.notes) lines.push(`<i>${escapeHtml(truncate(item.notes, 300))}</i>`);
   return { text: lines.join("\n"), keyboard: [[{ text: "✓ Выполнено", callback_data: `rdone:${item.id}` }]] };
 }
 
 /** Текст напоминания после нажатия «Выполнено» */
-export function reminderDoneText(title: string, nextDue: string | null, today: string): string {
-  const base = `✅ <s>${escapeHtml(title)}</s>`;
-  return nextDue ? `${base}\n🔁 Следующий раз: ${formatDayTitle(nextDue, today).toLowerCase()}` : base;
+export function reminderDoneText(title: string, nextDue: string | null, today: string, emoji?: CustomEmojiMap): string {
+  const e = emojiRenderer(emoji);
+  const base = `${e("done")} <s>${escapeHtml(title)}</s>`;
+  return nextDue ? `${base}\n${e("repeat")} Следующий раз: ${formatDayTitle(nextDue, today).toLowerCase()}` : base;
 }
 
 export const HELP_TEXT = [
@@ -200,6 +219,7 @@ export const HELP_TEXT = [
   "/tomorrow — задачи на завтра",
   "/money — доходы за месяц",
   "/add <i>текст</i> — добавить задачу во «Входящие» на сегодня",
+  "/emoji — свои премиум-эмодзи в сообщениях",
   "",
   "Утром пришлю сводку на день, вечером — что осталось, планы на завтра и доходы за месяц.",
   "Задачи со временем напомню отдельно.",
@@ -218,13 +238,16 @@ export function buildMoneyReport({
   goals,
   currency,
   appUrl,
+  emoji,
 }: {
   today: string;
   entries: MoneyEntryItem[];
   goals: GoalItem[];
   currency: string;
   appUrl?: string | null;
+  emoji?: CustomEmojiMap;
 }): BotMessage {
+  const e = emojiRenderer(emoji);
   const money = (cents: number) => formatMoney(cents, currency);
   const d = parseISO(today);
   const monthName = format(d, "LLLL", { locale: ru });
@@ -239,7 +262,7 @@ export function buildMoneyReport({
   const prevTotal = sumInRange(entries, prevToDate);
   const keyboard: InlineButton[][] = appUrl ? [[{ text: "Открыть «Деньги»", url: `${appUrl}/money` }]] : [];
 
-  const lines = [`💰 <b>Доходы за ${monthName}</b>`];
+  const lines = [`${e("money")} <b>Доходы за ${monthName}</b>`];
 
   if (monthEntries.length === 0) {
     lines.push("", "В этом месяце доходов пока нет.");
@@ -281,7 +304,7 @@ export function buildMoneyReport({
     lines.push("", "<b>Цели</b>");
     for (const { goal, progress } of active) {
       const status = progress.achieved
-        ? "✅ достигнута"
+        ? `${e("done")} достигнута`
         : `ещё ${formatMoney(progress.remainingCents, currency, { compact: true })}`;
       lines.push(`• ${escapeHtml(truncate(goal.title, 40))} — ${progress.percent}% · ${status}`);
     }

@@ -6,7 +6,7 @@ import path from "node:path";
 import { fromZonedTime } from "date-fns-tz";
 import type { Bot } from "grammy";
 import type { Update, UserFromGetMe } from "grammy/types";
-import { beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 const CHAT = 4242;
 const TZ = "Europe/Amsterdam";
@@ -16,6 +16,8 @@ let calls: Call[] = [];
 let failNextSend = false;
 /** Уронить первую отправку, текст которой подходит под условие */
 let failWhen: ((text: string) => boolean) | null = null;
+/** Имитация отказа Telegram в премиум-эмодзи (у владельца бота нет Premium) */
+let rejectCustomEmoji = false;
 let bot: Bot;
 let today: string;
 let m: {
@@ -108,6 +110,10 @@ beforeAll(async () => {
       failWhen = null;
       throw new Error("сеть недоступна");
     }
+    const sentText = String((payload as { text?: unknown }).text ?? "");
+    if (rejectCustomEmoji && sentText.includes("<tg-emoji")) {
+      return { ok: false, error_code: 400, description: "Bad Request: CUSTOM_EMOJI_NOT_ALLOWED" } as never;
+    }
     const result = method === "sendMessage" ? { message_id: calls.length, date: 0, chat: chat(CHAT), text: "" } : true;
     return { ok: true, result } as never;
   });
@@ -148,7 +154,7 @@ describe("бот", () => {
     await bot.handleUpdate(message("/today"));
     const digest = sent("sendMessage")[0];
     expect(textOf(digest)).toContain("<b>!!!</b> Позвонить маме");
-    expect(buttons(digest)).toContain(`done:${id}:${today}`);
+    expect(buttons(digest)).toContain(`done:${id}:${today}:t`);
 
     calls = [];
     await bot.handleUpdate(press(`done:${id}:${today}`, "📋 ..."));
@@ -156,7 +162,7 @@ describe("бот", () => {
     expect(sent("answerCallbackQuery")[0]?.payload.text).toBe("Готово ✓");
     const edited = sent("editMessageText")[0];
     expect(textOf(edited)).toContain("<s>Позвонить маме</s>");
-    expect(buttons(edited)).not.toContain(`done:${id}:${today}`);
+    expect(buttons(edited)).not.toContain(`done:${id}:${today}:t`);
   });
 
   it("повторяющаяся задача из сводки переносится на следующий раз", async () => {
@@ -327,8 +333,93 @@ describe("отчёт по кнопке из приложения", () => {
     expect(messages).toHaveLength(2);
     expect(textOf(messages[0])).toMatch(/^📋 <b>/);
     expect(textOf(messages[0])).toContain("Задача для отчёта");
-    expect(buttons(messages[0])).toContain(`done:${id}:${today}`);
+    expect(buttons(messages[0])).toContain(`done:${id}:${today}:t`);
     expect(textOf(messages[1])).toMatch(/^💰 <b>Доходы за /);
     expect(messages.every((c) => c.payload.chat_id === CHAT)).toBe(true);
+  });
+});
+
+describe("премиум-эмодзи: команда /emoji", () => {
+  /** Сообщение «/emoji <место> <премиум-эмодзи>» с сущностью custom_emoji, как его присылает Telegram */
+  function emojiCommand(args: string, emoji?: { alt: string; id: string }): Update {
+    const text = `/emoji ${args}${emoji ? ` ${emoji.alt}` : ""}`.trim();
+    const update = message(text);
+    if (emoji) {
+      update.message!.entities!.push({
+        type: "custom_emoji",
+        offset: text.length - emoji.alt.length,
+        length: emoji.alt.length,
+        custom_emoji_id: emoji.id,
+      });
+    }
+    return update;
+  }
+
+  afterEach(() => {
+    rejectCustomEmoji = false;
+    m.settings.setSetting("customEmoji", {});
+  });
+
+  it("/emoji без аргументов — список мест", async () => {
+    await bot.handleUpdate(emojiCommand(""));
+    const text = textOf(sent("sendMessage")[0]);
+    expect(text).toContain("Эмодзи в сообщениях");
+    expect(text).toContain("<b>вечер</b>");
+  });
+
+  it("назначение эмодзи: сохраняется, бот отвечает им же, сводки используют его", async () => {
+    await bot.handleUpdate(emojiCommand("вечер", { alt: "🌜", id: "5368324170671202286" }));
+    expect(m.settings.getSettings().customEmoji).toEqual({ evening: { id: "5368324170671202286", alt: "🌜" } });
+    expect(textOf(sent("sendMessage")[0])).toBe(
+      '<tg-emoji emoji-id="5368324170671202286">🌜</tg-emoji> Теперь это эмодзи для «вечер»',
+    );
+
+    calls = [];
+    await m.bot.sendDigest(bot.api, config, today, "evening");
+    expect(textOf(sent("sendMessage")[0])).toMatch(/^<tg-emoji emoji-id="5368324170671202286">🌜<\/tg-emoji> <b>Не выполнено/);
+  });
+
+  it("если Telegram отклоняет эмодзи — настройка не сохраняется и бот объясняет почему", async () => {
+    rejectCustomEmoji = true;
+    await bot.handleUpdate(emojiCommand("деньги", { alt: "💸", id: "42" }));
+    expect(m.settings.getSettings().customEmoji).toEqual({});
+    expect(textOf(sent("sendMessage").at(-1))).toContain("Telegram Premium");
+  });
+
+  it("если эмодзи перестали приниматься — сводка всё равно уходит, с обычными", async () => {
+    m.settings.setSetting("customEmoji", { morning: { id: "77", alt: "🌞" } });
+    rejectCustomEmoji = true;
+    await m.bot.sendDigest(bot.api, config, today, "morning");
+    const attempts = sent("sendMessage").map(textOf);
+    expect(attempts).toHaveLength(2);
+    expect(attempts[0]).toContain("<tg-emoji");
+    expect(attempts[1]!.startsWith("☀️ <b>Доброе утро!</b>")).toBe(true);
+  });
+
+  it("без премиум-эмодзи в команде — подсказка; сброс одного места и всех", async () => {
+    await bot.handleUpdate(emojiCommand("вечер"));
+    expect(textOf(sent("sendMessage")[0])).toContain("Добавьте после названия премиум-эмодзи");
+
+    m.settings.setSetting("customEmoji", { evening: { id: "1", alt: "🌜" }, money: { id: "2", alt: "💸" } });
+    await bot.handleUpdate(emojiCommand("вечер сброс"));
+    expect(m.settings.getSettings().customEmoji).toEqual({ money: { id: "2", alt: "💸" } });
+    await bot.handleUpdate(emojiCommand("сброс"));
+    expect(m.settings.getSettings().customEmoji).toEqual({});
+  });
+
+  it("неизвестное место", async () => {
+    await bot.handleUpdate(emojiCommand("обед", { alt: "🍔", id: "3" }));
+    expect(textOf(sent("sendMessage")[0])).toContain("Не знаю место «обед»");
+  });
+
+  it("«✓» под вечерней сводкой с необычным первым эмодзи перерисовывается как вечерняя", async () => {
+    m.settings.setSetting("customEmoji", { evening: { id: "5", alt: "🌜" } });
+    const id = newTask({ title: "Вечерний хвост", dueDate: today });
+    const sentAt = Math.floor(Date.now() / 1000) - 60;
+    // Текст начинается с «🌜», а не с «🌙» — вариант берётся из кнопки
+    await bot.handleUpdate(press(`done:${id}:${today}:e`, "🌜 Не выполнено сегодня", sentAt));
+    const edited = textOf(sent("editMessageText")[0]);
+    expect(edited).toContain("<b>Не выполнено сегодня</b>");
+    expect(edited).toContain("<s>Вечерний хвост</s>");
   });
 });

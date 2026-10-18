@@ -56,7 +56,7 @@ describe("утренняя сводка", () => {
     const done = item({ title: "Готовая", status: "done" });
     const moved = item({ title: "Зарядка", status: "rescheduled", nextDue: "2026-10-18", recurring: true });
     const msg = buildDigest({ date: DATE, items: [open, done, moved], lists, variant: "morning" });
-    expect(msg.keyboard).toEqual([[{ text: "✓ Открытая", callback_data: `done:${open.id}:${DATE}` }]]);
+    expect(msg.keyboard).toEqual([[{ text: "✓ Открытая", callback_data: `done:${open.id}:${DATE}:m` }]]);
     expect(msg.text).toContain("<s>Готовая</s>");
     expect(msg.text).toContain("<s>Зарядка</s> · 🔁 завтра");
     expect(msg.text).toContain("выполнено: 2");
@@ -64,7 +64,10 @@ describe("утренняя сводка", () => {
     expect("callback_data" in button && DIGEST_DONE.exec(button.callback_data)?.slice(1)).toEqual([
       String(open.id),
       DATE,
+      "m",
     ]);
+    // Кнопки из старых сообщений — без кода варианта — тоже распознаются
+    expect(DIGEST_DONE.exec(`done:7:${DATE}`)?.slice(1)).toEqual(["7", DATE, undefined]);
   });
 
   it("всё выполнено", () => {
@@ -178,5 +181,35 @@ describe("отчёт по доходам", () => {
   it("ссылка на экран денег, если задан публичный адрес", () => {
     const msg = buildMoneyReport({ today: DATE, entries: [], goals: [], currency: "EUR", appUrl: "https://t.example" });
     expect(msg.keyboard).toEqual([[{ text: "Открыть «Деньги»", url: "https://t.example/money" }]]);
+  });
+});
+
+describe("премиум-эмодзи в сообщениях", () => {
+  const emoji = {
+    evening: { id: "101", alt: "🌜" },
+    done: { id: "102", alt: "✔️" },
+    money: { id: "103", alt: "💸" },
+  };
+
+  it("заголовок и пункты сводки используют эмодзи пользователя", () => {
+    const msg = buildDigest({
+      date: DATE,
+      items: [item({ title: "Хвост" }), item({ title: "Готово", status: "done" })],
+      lists,
+      variant: "evening",
+      emoji,
+    });
+    expect(msg.text.startsWith('<tg-emoji emoji-id="101">🌜</tg-emoji> <b>Не выполнено сегодня</b>')).toBe(true);
+    expect(msg.text).toContain('<tg-emoji emoji-id="102">✔️</tg-emoji> <s>Готово</s>');
+    expect(msg.text).toContain("◻️ Хвост"); // для «задача» эмодзи не задан — обычный
+    // Вариант зашит в кнопку, поэтому необычный первый символ не мешает перерисовке
+    expect(msg.keyboard[0]).toEqual([{ text: "✓ Хвост", callback_data: expect.stringMatching(/:e$/) }]);
+  });
+
+  it("отчёт по доходам и напоминание", () => {
+    expect(buildMoneyReport({ today: DATE, entries: [], goals: [], currency: "EUR", emoji }).text).toMatch(
+      /^<tg-emoji emoji-id="103">💸<\/tg-emoji> <b>Доходы/,
+    );
+    expect(reminderDoneText("Дело", null, DATE, emoji)).toBe('<tg-emoji emoji-id="102">✔️</tg-emoji> <s>Дело</s>');
   });
 });
