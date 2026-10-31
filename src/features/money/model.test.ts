@@ -3,14 +3,21 @@ import {
   addToTotals,
   centsToInput,
   describeGoalPeriod,
+  goalMonth,
   goalProgress,
   groupEntriesByMonth,
+  monthLabel,
+  monthOptions,
+  monthRange,
   monthlyTotals,
   parseAmount,
   periodLabel,
   periodRange,
   periodTotals,
+  pickHeroGoal,
+  sortGoals,
   type GoalItem,
+  type GoalProgress,
   type MoneyEntryItem,
 } from "./model";
 
@@ -141,5 +148,79 @@ describe("ввод сумм", () => {
     expect(centsToInput(1250)).toBe("12,5");
     expect(centsToInput(123_405)).toBe("1234,05");
     expect(parseAmount(centsToInput(98_765))).toBe(98_765);
+  });
+});
+
+describe("цели на конкретный месяц", () => {
+  const TODAY_31 = "2026-10-31";
+  const goal = (patch: Partial<GoalItem>): GoalItem => ({
+    id: 1,
+    title: "Цель",
+    targetCents: 8_000_000,
+    period: null,
+    startDate: null,
+    endDate: null,
+    ...patch,
+  });
+  const november = goal({ id: 2, title: "Ноябрь", ...{ startDate: "2026-11-01", endDate: "2026-11-30" } });
+  const october = goal({ id: 3, title: "Октябрь", targetCents: 6_500_000, startDate: "2026-10-01", endDate: "2026-10-31" });
+
+  it("границы месяца и распознавание цели «на месяц»", () => {
+    expect(monthRange("2027-02")).toEqual({ from: "2027-02-01", to: "2027-02-28" });
+    expect(goalMonth(november)).toBe("2026-11");
+    expect(goalMonth(goal({ startDate: "2026-11-01", endDate: "2026-11-29" }))).toBeNull();
+    expect(goalMonth(goal({ period: "month" }))).toBeNull();
+  });
+
+  it("подписи месяцев: год — только если не текущий", () => {
+    expect(monthLabel("2026-11", TODAY_31)).toBe("Ноябрь");
+    expect(monthLabel("2027-01", TODAY_31)).toBe("Январь 2027");
+    expect(describeGoalPeriod(november, TODAY_31)).toBe("Ноябрь");
+  });
+
+  it("выбор месяца: с текущего на год вперёд; месяц старой цели добавляется", () => {
+    const options = monthOptions(TODAY_31);
+    expect(options[0]).toBe("2026-10");
+    expect(options.at(-1)).toBe("2027-10");
+    expect(options).toHaveLength(13);
+    expect(monthOptions(TODAY_31, "2026-08")[0]).toBe("2026-08");
+  });
+
+  it("будущая цель ещё не началась и не копит чужие доходы", () => {
+    const entries = [entry("2026-10-20", 7_100_000)];
+    const p = goalProgress(november, entries, TODAY_31);
+    expect(p).toMatchObject({ upcoming: true, finished: false, earnedCents: 0, percent: 0, expired: false });
+    expect(goalProgress(october, entries, TODAY_31)).toMatchObject({ achieved: true, upcoming: false, finished: false });
+  });
+
+  it("порядок: текущие → будущие (ближайшие раньше) → завершённые", () => {
+    const december = goal({ id: 4, title: "Декабрь", startDate: "2026-12-01", endDate: "2026-12-31" });
+    const september = goal({ id: 5, title: "Сентябрь", startDate: "2026-09-01", endDate: "2026-09-30" });
+    const items = [december, september, november, october].map((g) => ({ goal: g, progress: goalProgress(g, [], TODAY_31) }));
+    expect(sortGoals(items, TODAY_31).map((i) => i.goal.title)).toEqual(["Октябрь", "Ноябрь", "Декабрь", "Сентябрь"]);
+  });
+});
+
+describe("цель в шапке", () => {
+  const progress = (patch: Partial<GoalProgress>): GoalProgress => ({
+    earnedCents: 0,
+    percent: 0,
+    remainingCents: 0,
+    achieved: false,
+    daysLeft: 10,
+    expired: false,
+    upcoming: false,
+    finished: false,
+    ...patch,
+  });
+
+  it("текущая недостигнутая важнее достигнутой; будущие и завершённые не показываются", () => {
+    const done = { id: "октябрь", progress: progress({ achieved: true }) };
+    const next = { id: "ноябрь", progress: progress({ upcoming: true }) };
+    const old = { id: "сентябрь", progress: progress({ finished: true }) };
+    const yearly = { id: "год", progress: progress({}) };
+    expect(pickHeroGoal([done, next, old, yearly])?.id).toBe("год");
+    expect(pickHeroGoal([done, next])?.id).toBe("октябрь");
+    expect(pickHeroGoal([next, old])).toBeUndefined();
   });
 });

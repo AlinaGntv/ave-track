@@ -1,6 +1,7 @@
 // Чистая логика денежного трекера: периоды, суммы, прогресс целей, помесячный график.
 // Суммы — целые центы, даты — локальные "YYYY-MM-DD".
 import {
+  addMonths,
   differenceInCalendarDays,
   endOfISOWeek,
   endOfMonth,
@@ -120,6 +121,10 @@ export type GoalProgress = {
   daysLeft: number | null;
   /** Дедлайн прошёл, а цель не достигнута */
   expired: boolean;
+  /** Период цели ещё не начался (например, цель на следующий месяц) */
+  upcoming: boolean;
+  /** Период цели уже закончился — достигнута она или нет */
+  finished: boolean;
 };
 
 export function goalProgress(goal: GoalItem, entries: Array<Pick<MoneyEntryItem, "amountCents" | "date">>, today: string): GoalProgress {
@@ -128,19 +133,71 @@ export function goalProgress(goal: GoalItem, entries: Array<Pick<MoneyEntryItem,
   const percent = goal.targetCents > 0 ? Math.floor((earnedCents / goal.targetCents) * 100) : 0;
   const achieved = earnedCents >= goal.targetCents;
   const daysLeft = range.to ? differenceInCalendarDays(parseISO(range.to), parseISO(today)) : null;
+  const finished = daysLeft != null && daysLeft < 0;
   return {
     earnedCents,
     percent,
     remainingCents: Math.max(0, goal.targetCents - earnedCents),
     achieved,
     daysLeft,
-    expired: !achieved && daysLeft != null && daysLeft < 0,
+    expired: !achieved && finished,
+    upcoming: range.from != null && range.from > today,
+    finished,
   };
 }
 
-export function describeGoalPeriod(goal: GoalItem): string {
+// ───────────── цели на конкретный месяц ─────────────
+// Хранятся как разовая цель (period = null) с датами от 1-го до последнего числа месяца.
+
+/** Границы месяца "YYYY-MM" */
+export function monthRange(month: string): { from: string; to: string } {
+  const first = parseISO(`${month}-01`);
+  return { from: format(first, "yyyy-MM-dd"), to: format(endOfMonth(first), "yyyy-MM-dd") };
+}
+
+/** "YYYY-MM", если цель ровно на один календарный месяц, иначе null. */
+export function goalMonth(goal: Pick<GoalItem, "period" | "startDate" | "endDate">): string | null {
+  if (goal.period || !goal.startDate || !goal.endDate) return null;
+  const month = goal.startDate.slice(0, 7);
+  const range = monthRange(month);
+  return goal.startDate === range.from && goal.endDate === range.to ? month : null;
+}
+
+/** «Ноябрь»; для другого года — «Январь 2028». */
+export function monthLabel(month: string, today: string): string {
+  const d = parseISO(`${month}-01`);
+  const name = format(d, "LLLL", { locale: ru });
+  const label = name.charAt(0).toUpperCase() + name.slice(1);
+  return month.slice(0, 4) === today.slice(0, 4) ? label : `${label} ${month.slice(0, 4)}`;
+}
+
+/** Месяцы для выбора: с текущего на год вперёд (плюс месяц уже сохранённой цели, если он вне этого окна). */
+export function monthOptions(today: string, include?: string | null): string[] {
+  const current = startOfMonth(parseISO(today));
+  const months = Array.from({ length: 13 }, (_, i) => format(addMonths(current, i), "yyyy-MM"));
+  if (include && !months.includes(include)) months.unshift(include);
+  return months;
+}
+
+/** Порядок целей: текущие, затем будущие (ближайшие раньше), затем завершённые (свежие раньше). */
+export function sortGoals<T extends { goal: GoalItem; progress: GoalProgress }>(goals: T[], today: string): T[] {
+  const rank = (p: GoalProgress) => (p.finished ? 2 : p.upcoming ? 1 : 0);
+  const start = (g: GoalItem) => goalRange(g, today).from ?? "";
+  const end = (g: GoalItem) => goalRange(g, today).to ?? "9999";
+  return [...goals].sort((a, b) => {
+    const r = rank(a.progress) - rank(b.progress);
+    if (r !== 0) return r;
+    if (a.progress.upcoming) return start(a.goal) < start(b.goal) ? -1 : 1;
+    if (a.progress.finished) return end(a.goal) > end(b.goal) ? -1 : 1;
+    return a.goal.id - b.goal.id;
+  });
+}
+
+export function describeGoalPeriod(goal: GoalItem, today?: string): string {
   if (goal.period === "month") return "Каждый месяц";
   if (goal.period === "year") return "Каждый год";
+  const month = goalMonth(goal);
+  if (month && today) return monthLabel(month, today);
   if (goal.endDate) return `До ${format(parseISO(goal.endDate), "d MMMM yyyy", { locale: ru })}`;
   if (goal.startDate) return `С ${format(parseISO(goal.startDate), "d MMMM yyyy", { locale: ru })}`;
   return "Без срока";
@@ -207,4 +264,13 @@ export function centsToInput(cents: number): string {
   const fraction = cents % 100;
   if (fraction === 0) return String(whole);
   return `${whole},${String(fraction).padStart(2, "0").replace(/0$/, "")}`;
+}
+
+/**
+ * Цель для шапки «Заработано»: текущая недостигнутая, иначе любая текущая.
+ * Будущие (ещё не начались) и завершённые в шапку не попадают.
+ */
+export function pickHeroGoal<T extends { progress: GoalProgress }>(goals: T[]): T | undefined {
+  const active = goals.filter((g) => !g.progress.upcoming && !g.progress.finished);
+  return active.find((g) => !g.progress.achieved) ?? active[0];
 }

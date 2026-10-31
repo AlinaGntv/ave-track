@@ -213,3 +213,23 @@ describe("премиум-эмодзи в сообщениях", () => {
     expect(reminderDoneText("Дело", null, DATE, emoji)).toBe('<tg-emoji emoji-id="102">✔️</tg-emoji> <s>Дело</s>');
   });
 });
+
+describe("отчёт по доходам: цели на конкретные месяцы", () => {
+  it("цель следующего месяца ещё не показывается, текущего — показывается", () => {
+    const goals = [
+      { id: 1, title: "Октябрь", targetCents: 100_000, period: null, startDate: "2026-10-01", endDate: "2026-10-31" },
+      { id: 2, title: "Ноябрь", targetCents: 8_000_000, period: null, startDate: "2026-11-01", endDate: "2026-11-30" },
+    ];
+    const text = buildMoneyReport({ today: DATE, entries: [], goals, currency: "EUR" }).text;
+    expect(text).not.toContain("Ноябрь");
+    expect(text).toContain("В этом месяце доходов пока нет.");
+    const withIncome = buildMoneyReport({
+      today: DATE,
+      entries: [{ id: 1, date: DATE, amountCents: 50_000, note: null }],
+      goals,
+      currency: "EUR",
+    }).text;
+    expect(withIncome).toContain("• Октябрь — 50%");
+    expect(withIncome).not.toContain("Ноябрь");
+  });
+});

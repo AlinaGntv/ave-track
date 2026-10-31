@@ -298,7 +298,8 @@ export function buildMoneyReport({
 
   const active = goals
     .map((goal) => ({ goal, progress: goalProgress(goal, entries, today) }))
-    .filter(({ progress }) => !progress.expired)
+    // Только цели текущего периода: будущие (на следующие месяцы) и завершённые не показываем
+    .filter(({ progress }) => !progress.upcoming && !progress.finished)
     .slice(0, 5);
   if (active.length) {
     lines.push("", "<b>Цели</b>");

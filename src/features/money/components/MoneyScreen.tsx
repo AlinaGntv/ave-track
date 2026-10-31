@@ -13,6 +13,8 @@ import { useToast } from "@/shared/ui/Toast";
 import { deleteEntryAction, deleteGoalAction, saveEntryAction, saveGoalAction } from "../actions";
 import {
   goalProgress,
+  pickHeroGoal,
+  sortGoals,
   groupEntriesByMonth,
   monthlyTotals,
   periodTotals,
@@ -77,8 +79,12 @@ export function MoneyScreen({
   const totals = periodTotals(entries, today);
   const months = monthlyTotals(entries, today);
   const groups = groupEntriesByMonth(entries);
-  const goalItems = goals.map((goal) => ({ goal, progress: goalProgress(goal, entries, today) }));
-  const heroGoal = goalItems.find((g) => !g.progress.achieved) ?? goalItems[0];
+  // Текущие цели первыми, затем будущие (на следующие месяцы), затем завершённые
+  const goalItems = sortGoals(
+    goals.map((goal) => ({ goal, progress: goalProgress(goal, entries, today) })),
+    today,
+  );
+  const heroGoal = pickHeroGoal(goalItems);
 
   return (
     <>

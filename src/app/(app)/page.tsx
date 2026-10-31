@@ -2,6 +2,7 @@ import { ListsSection } from "@/features/lists/components/ListsSection";
 import { SmartListTiles } from "@/features/lists/components/SmartListTiles";
 import { getInboxListId, getLists } from "@/features/lists/server";
 import { HomeMoneyHero } from "@/features/money/components/HomeMoneyHero";
+import { pickHeroGoal } from "@/features/money/model";
 import { getMoneyOverview, getRecentNotes } from "@/features/money/server";
 import { getSettings } from "@/features/settings/server";
 import { countSmartLists } from "@/features/tasks/model";
@@ -17,8 +18,8 @@ export default function HomePage() {
   const today = todayIn(settings.timezone);
   const counts = countSmartLists(getOpenTasks(), today);
   const money = getMoneyOverview(today);
-  // В шапке — ближайшая недостигнутая цель
-  const goal = money.goals.find((g) => !g.progress.achieved) ?? money.goals[0];
+  // В шапке — текущая недостигнутая цель (будущие и завершённые не показываем)
+  const goal = pickHeroGoal(money.goals);
 
   return (
     <div className="pt-4">

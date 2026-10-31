@@ -1,5 +1,7 @@
 "use client";
 
+import { format, parseISO } from "date-fns";
+import { ru } from "date-fns/locale";
 import { motion } from "framer-motion";
 import { Check } from "lucide-react";
 import { formatMoney } from "@/shared/lib/money";
@@ -36,6 +38,9 @@ function ProgressRing({ percent, size = 64 }: { percent: number; size?: number }
 }
 
 function deadlineText(goal: GoalItem, progress: GoalProgress): string {
+  if (progress.upcoming && goal.startDate) {
+    return `Начнётся ${format(parseISO(goal.startDate), "d MMMM", { locale: ru })}`;
+  }
   if (progress.achieved) return "Цель достигнута";
   if (progress.expired) return "Срок вышел";
   if (progress.daysLeft != null) {
@@ -74,8 +79,9 @@ export function GoalCard({
       <ProgressRing percent={progress.percent} />
       <p className="relative mt-4 line-clamp-2 text-[16px] leading-snug font-bold">{goal.title}</p>
       <p className={cn("relative mt-1 text-[13px] tabular-nums", primary ? "text-on-ink-muted" : "text-muted-2")}>
-        {formatMoney(progress.earnedCents, currency, { compact: true })} из{" "}
-        {formatMoney(goal.targetCents, currency, { compact: true })}
+        {progress.upcoming
+          ? `Цель: ${formatMoney(goal.targetCents, currency, { compact: true })}`
+          : `${formatMoney(progress.earnedCents, currency, { compact: true })} из ${formatMoney(goal.targetCents, currency, { compact: true })}`}
       </p>
       <p
         className={cn(
@@ -83,7 +89,7 @@ export function GoalCard({
           primary ? "text-on-ink-muted" : "text-muted-2",
         )}
       >
-        {progress.achieved || progress.remainingCents === 0
+        {progress.upcoming || progress.achieved || progress.remainingCents === 0
           ? deadlineText(goal, progress)
           : `Ещё ${formatMoney(progress.remainingCents, currency, { compact: true })} · ${deadlineText(goal, progress).toLowerCase()}`}
       </p>
