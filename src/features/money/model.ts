@@ -171,11 +171,18 @@ export function monthLabel(month: string, today: string): string {
   return month.slice(0, 4) === today.slice(0, 4) ? label : `${label} ${month.slice(0, 4)}`;
 }
 
-/** Месяцы для выбора: с текущего на год вперёд (плюс месяц уже сохранённой цели, если он вне этого окна). */
+/**
+ * Месяцы для выбора: год назад и год вперёд от текущего. Прошедшие нужны, чтобы закрепить
+ * цель за уже закончившимся месяцем (например, 1 ноября — за октябрём). Месяц уже
+ * сохранённой цели добавляется, даже если он вне этого окна.
+ */
 export function monthOptions(today: string, include?: string | null): string[] {
   const current = startOfMonth(parseISO(today));
-  const months = Array.from({ length: 13 }, (_, i) => format(addMonths(current, i), "yyyy-MM"));
-  if (include && !months.includes(include)) months.unshift(include);
+  const months = Array.from({ length: 25 }, (_, i) => format(addMonths(current, i - 12), "yyyy-MM"));
+  if (include && !months.includes(include)) {
+    months.push(include);
+    months.sort();
+  }
   return months;
 }
 

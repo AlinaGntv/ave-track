@@ -178,12 +178,18 @@ describe("цели на конкретный месяц", () => {
     expect(describeGoalPeriod(november, TODAY_31)).toBe("Ноябрь");
   });
 
-  it("выбор месяца: с текущего на год вперёд; месяц старой цели добавляется", () => {
+  it("выбор месяца: год назад и год вперёд; месяц старой цели добавляется по порядку", () => {
     const options = monthOptions(TODAY_31);
-    expect(options[0]).toBe("2026-10");
+    expect(options[0]).toBe("2025-10");
     expect(options.at(-1)).toBe("2027-10");
-    expect(options).toHaveLength(13);
-    expect(monthOptions(TODAY_31, "2026-08")[0]).toBe("2026-08");
+    expect(options).toHaveLength(25);
+    const withOld = monthOptions(TODAY_31, "2024-03");
+    expect(withOld[0]).toBe("2024-03");
+    expect(withOld).toHaveLength(26);
+  });
+
+  it("1 ноября октябрь всё ещё можно выбрать — чтобы закрепить за ним цель", () => {
+    expect(monthOptions("2026-11-01")).toContain("2026-10");
   });
 
   it("будущая цель ещё не началась и не копит чужие доходы", () => {
