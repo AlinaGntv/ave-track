@@ -4,7 +4,7 @@ import { Api, GrammyError } from "grammy";
 import { getSettings } from "@/features/settings/server";
 import { todayIn } from "@/shared/lib/dates";
 import { sendReport } from "./bot";
-import { getTelegramConfig } from "./config";
+import { getTelegramConfig, telegramClientOptions } from "./config";
 
 export type SendReportResult = { ok: true } | { ok: false; error: string };
 
@@ -16,7 +16,7 @@ export async function sendReportAction(): Promise<SendReportResult> {
   const config = getTelegramConfig();
   if (!config) return { ok: false, error: "Бот не настроен: нет TELEGRAM_BOT_TOKEN или TELEGRAM_CHAT_ID" };
   try {
-    await sendReport(new Api(config.token), config, todayIn(getSettings().timezone));
+    await sendReport(new Api(config.token, telegramClientOptions(config)), config, todayIn(getSettings().timezone));
     return { ok: true };
   } catch (error) {
     console.error("[telegram] отчёт не отправлен:", error);

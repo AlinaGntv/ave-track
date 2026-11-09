@@ -4,13 +4,24 @@ export type TelegramConfig = {
   chatId: number;
   /** Публичный адрес приложения для кнопки «Открыть» — только не localhost (Telegram их отклоняет) */
   appUrl: string | null;
+  /**
+   * Адрес Bot API, если не api.telegram.org: собственный Bot API сервер или прокси
+   * (когда Telegram недоступен с сервера). null — стандартный.
+   */
+  apiRoot?: string | null;
 };
 
 export function getTelegramConfig(env: NodeJS.ProcessEnv = process.env): TelegramConfig | null {
   const token = env.TELEGRAM_BOT_TOKEN?.trim();
   const chat = env.TELEGRAM_CHAT_ID?.trim();
   if (!token || !chat || !/^-?\d+$/.test(chat)) return null;
-  return { token, chatId: Number(chat), appUrl: publicUrl(env.APP_URL) };
+  const apiRoot = env.TELEGRAM_API_ROOT?.trim().replace(/\/$/, "") || null;
+  return { token, chatId: Number(chat), appUrl: publicUrl(env.APP_URL), apiRoot };
+}
+
+/** Параметры клиента grammY с учётом TELEGRAM_API_ROOT */
+export function telegramClientOptions(config: TelegramConfig): { apiRoot?: string } {
+  return config.apiRoot ? { apiRoot: config.apiRoot } : {};
 }
 
 function publicUrl(value: string | undefined): string | null {

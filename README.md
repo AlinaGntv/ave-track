@@ -128,6 +128,8 @@ docker compose logs -f worker   # убедиться, что бот запуст
 ```
 
 - Два сервиса `web` и `worker` и общий том `avetrack-data` с базой в `/data/avetrack.db`.
+- Образ `worker` лёгкий (~15 МБ): бот собран в один файл (`npm run build:worker`, esbuild), рядом только драйвер SQLite, миграции и скрипт бэкапа.
+- Старые образы после пересборок занимают место на диске — время от времени чистите их: `docker image prune -f`.
 - Web слушает `127.0.0.1:3000`, наружу его выпускает reverse proxy. Без прокси замените в `docker-compose.yml` на `"3000:3000"`.
 - Обновление: `git pull && docker compose up -d --build`. Миграции применяются автоматически.
 
@@ -237,6 +239,7 @@ scripts/                  запуск, миграции, бэкап, иконк
 |---|---|
 | Не получается войти, страница входа снова открывается | Приложение открыто по http, а `COOKIE_SECURE=true`. Настройте HTTPS или временно поставьте `COOKIE_SECURE=false`. |
 | Бот молчит | Посмотрите логи worker'а (`pm2 logs avetrack-worker` / `docker compose logs worker`), проверьте `TELEGRAM_*` и отправьте тест из настроек. Бот отвечает только своему `TELEGRAM_CHAT_ID`. |
+| В логах «Network request … failed», Telegram недоступен с сервера | Укажите в `.env` `TELEGRAM_API_ROOT` — адрес своего Bot API сервера или прокси до api.telegram.org — и перезапустите `web` и `worker`. |
 | Сводка пришла не в то время | Проверьте часовой пояс в **Настройках** — он задаётся там, а не на сервере. |
 | `npm ci` падает с `EPERM ... unlink ... .node` (Windows) | Файлы `node_modules` заняты запущенным процессом. Остановите `npm run dev` / `npm run worker` (Ctrl+C) и повторите. Пока сервер работает, `npm ci` не нужен. |
 | `npm ci` падает на better-sqlite3 | Нет готового бинарника для платформы: установите `build-essential python3` (Linux) или Visual Studio Build Tools (Windows) и повторите. |

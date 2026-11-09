@@ -8,7 +8,7 @@ import { emptyDraft } from "@/features/tasks/model";
 import { completeTask, getOpenTasks, saveTask } from "@/features/tasks/server";
 import { getDb, schema } from "@/shared/db/client";
 import { shiftDate, todayIn } from "@/shared/lib/dates";
-import type { TelegramConfig } from "./config";
+import { telegramClientOptions, type TelegramConfig } from "./config";
 import {
   buildEmojiHelp,
   EMOJI_SLOTS,
@@ -148,7 +148,10 @@ function taskTitle(id: number): string | null {
 }
 
 export function createBot(config: TelegramConfig, options: { botInfo?: UserFromGetMe } = {}): Bot {
-  const bot = new Bot(config.token, options.botInfo ? { botInfo: options.botInfo } : undefined);
+  const bot = new Bot(config.token, {
+    client: telegramClientOptions(config),
+    ...(options.botInfo ? { botInfo: options.botInfo } : {}),
+  });
 
   // Бот личный: всё, что пришло не из настроенного чата, молча игнорируется
   bot.use(async (ctx: Context, next) => {

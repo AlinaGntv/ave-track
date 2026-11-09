@@ -3,7 +3,7 @@
 import { Api } from "grammy";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { getTelegramConfig } from "@/features/telegram/config";
+import { getTelegramConfig, telegramClientOptions } from "@/features/telegram/config";
 import { isValidTimeZone } from "@/shared/lib/dates";
 import { CURRENCIES } from "@/shared/lib/money";
 import { setSetting } from "./server";
@@ -41,7 +41,7 @@ export async function sendTestMessageAction(): Promise<{ ok: boolean; error?: st
   const config = getTelegramConfig();
   if (!config) return { ok: false, error: "В .env не заданы TELEGRAM_BOT_TOKEN и TELEGRAM_CHAT_ID" };
   try {
-    await new Api(config.token).sendMessage(config.chatId, "✅ AveTrack на связи — уведомления будут приходить сюда.");
+    await new Api(config.token, telegramClientOptions(config)).sendMessage(config.chatId, "✅ AveTrack на связи — уведомления будут приходить сюда.");
     return { ok: true };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) };

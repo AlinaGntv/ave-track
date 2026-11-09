@@ -13,7 +13,8 @@
     "backup": "node --env-file-if-exists=.env scripts/backup.mjs",
     "icons": "node scripts/generate-icons.mjs",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build:worker": "node scripts/build-worker.mjs"
   },
   "dependencies": {
     "better-sqlite3": "^12.11.1",
@@ -36,6 +37,7 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "drizzle-kit": "^0.31.11",
+    "esbuild": "^0.28.2",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.23.15",
     "typescript": "^5.9.3",
