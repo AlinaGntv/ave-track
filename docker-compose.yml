@@ -1,4 +1,4 @@
-# docker compose up -d --build
+# Запуск и обновление: bash scripts/deploy.sh (сборка по очереди, без зависаний на маленьком VPS)
 # web и worker работают с одним файлом SQLite в общем томе avetrack-data (WAL-режим).
 services:
   web:

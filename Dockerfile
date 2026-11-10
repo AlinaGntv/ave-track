@@ -18,6 +18,8 @@ RUN npm ci
 
 # ── сборка Next.js
 FROM base AS build
+# Экономная сборка (next.config.ts): маленький VPS не должен зависать от нехватки памяти
+ENV LOW_MEMORY_BUILD=1
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build

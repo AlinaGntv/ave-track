@@ -126,15 +126,15 @@ docker run -d --name caddy --restart unless-stopped --network host \
 git clone <репозиторий> avetrack && cd avetrack
 cp .env.example .env   # заполнить APP_PASSWORD, SESSION_SECRET, TELEGRAM_*, APP_URL
 mkdir -p backups && sudo chown 1000:1000 backups   # контейнеры работают от пользователя node (uid 1000)
-docker compose up -d --build
+bash scripts/deploy.sh          # swap при необходимости, сборка по очереди, запуск
 docker compose logs -f worker   # убедиться, что бот запустился
 ```
 
 - Два сервиса `web` и `worker` и общий том `avetrack-data` с базой в `/data/avetrack.db`.
 - Образ `worker` лёгкий (~15 МБ): бот собран в один файл (`npm run build:worker`, esbuild), рядом только драйвер SQLite, миграции и скрипт бэкапа.
-- Старые образы после пересборок занимают место на диске — время от времени чистите их: `docker image prune -f`.
 - Web слушает `127.0.0.1:3000`, наружу его выпускает reverse proxy. Без прокси замените в `docker-compose.yml` на `"3000:3000"`.
-- Обновление: `git pull && docker compose up -d --build`. Миграции применяются автоматически.
+- **Обновление:** `cd /opt/avetrack && bash scripts/deploy.sh` — скрипт сам делает `git pull`, собирает web и worker по очереди, перезапускает контейнеры и чистит старые образы. Миграции применяются автоматически. Пока идёт сборка, работает прежняя версия.
+- Маленький VPS (1–2 ГБ памяти): скрипт создаёт swap на 2 ГБ, если его нет, а Next.js в Docker собирается в экономном режиме (`LOW_MEMORY_BUILD=1`: один поток, без проверки типов — её делает `npm run typecheck` перед отправкой кода). Не запускайте `docker compose up -d --build` напрямую: две сборки параллельно могут съесть всю память и повесить сервер.
 
 ### Вариант 2. Без Docker, через PM2
 
