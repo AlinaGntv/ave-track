@@ -4,7 +4,7 @@ import type { UserFromGetMe } from "grammy/types";
 import { getInboxListId, getLists } from "@/features/lists/server";
 import { getEntries, getGoals } from "@/features/money/server";
 import { getSettings, setSetting } from "@/features/settings/server";
-import { emptyDraft } from "@/features/tasks/model";
+import { emptyDraft, type TaskItem } from "@/features/tasks/model";
 import { completeTask, getOpenTasks, saveTask } from "@/features/tasks/server";
 import { getDb, schema } from "@/shared/db/client";
 import { shiftDate, todayIn } from "@/shared/lib/dates";
@@ -22,6 +22,7 @@ import {
 import {
   buildDigest,
   buildMoneyReport,
+  buildEarlyReminder,
   buildReminder,
   DIGEST_DONE,
   escapeHtml,
@@ -126,6 +127,22 @@ export async function sendReminder(api: Api, config: TelegramConfig, taskId: num
   if (!task) return;
   await withEmoji((emoji) => {
     const msg = buildReminder(task, emoji);
+    return api.sendMessage(config.chatId, msg.text, markup(msg));
+  });
+}
+
+/** Раннее напоминание: «Через 2 недели — Путешествие». */
+export async function sendEarlyReminder(api: Api, config: TelegramConfig, task: TaskItem, offset: string) {
+  if (!task.dueDate) return;
+  const dueDate = task.dueDate;
+  const today = todayIn(getSettings().timezone);
+  await withEmoji((emoji) => {
+    const msg = buildEarlyReminder({
+      task: { ...task, dueDate, recurring: task.recurrence != null },
+      offset,
+      today,
+      emoji,
+    });
     return api.sendMessage(config.chatId, msg.text, markup(msg));
   });
 }

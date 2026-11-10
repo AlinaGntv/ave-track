@@ -2,6 +2,7 @@ import { and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, lte, max, n
 import { getDb, schema, type Db } from "@/shared/db/client";
 import type { Task } from "@/shared/db/schema";
 import { parseRecurrence, serializeRecurrence } from "@/features/recurrence/rule";
+import { parseEarlyJson, serializeEarly } from "./early";
 import {
   applyCompletion,
   completionOutcome,
@@ -26,10 +27,12 @@ function toItem(row: Task, subtasks: SubtaskItem[], stats?: CompletionStats): Ta
     notes: row.notes,
     dueDate: row.dueDate,
     dueTime: row.dueTime,
+    durationMinutes: row.durationMinutes,
     priority: row.priority as Priority,
     flagged: row.flagged,
     completedAt: row.completedAt?.getTime() ?? null,
     recurrence: parseRecurrence(row.recurrence),
+    earlyReminders: parseEarlyJson(row.earlyReminders),
     completionCount: stats?.count ?? 0,
     lastCompletedAt: stats?.last ?? null,
     sortOrder: row.sortOrder,
@@ -123,9 +126,11 @@ export function saveTask(id: number | null, draft: TaskDraft): number {
       listId: draft.listId,
       dueDate: draft.dueDate,
       dueTime: draft.dueDate ? draft.dueTime : null,
+      durationMinutes: draft.dueDate && draft.dueTime ? draft.durationMinutes : null,
       priority: draft.priority,
       flagged: draft.flagged,
       recurrence: draft.dueDate ? serializeRecurrence(draft.recurrence) : null,
+      earlyReminders: draft.dueDate ? serializeEarly(draft.earlyReminders) : null,
       updatedAt: now,
     };
 

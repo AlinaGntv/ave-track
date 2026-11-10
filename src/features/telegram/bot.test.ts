@@ -423,3 +423,33 @@ describe("премиум-эмодзи: команда /emoji", () => {
     expect(edited).toContain("<s>Вечерний хвост</s>");
   });
 });
+
+describe("ранние напоминания: планировщик", () => {
+  const at = (date: string, time: string) => fromZonedTime(`${date}T${time}:00`, TZ);
+
+  it("приходят в нужный день во время утренней сводки, каждое — один раз", async () => {
+    m.settings.setSetting("digestTime", "08:00");
+    const inWeek = m.dates.shiftDate(today, 7);
+    newTask({ title: "Путешествие", dueDate: inWeek, earlyReminders: ["1w", "1d"] });
+    const early = () => sent("sendMessage").map(textOf).filter((t) => t.includes("Путешествие"));
+
+    await m.scheduler.tick(bot.api, config, at(today, "07:59"));
+    expect(early()).toEqual([]);
+
+    await m.scheduler.tick(bot.api, config, at(today, "08:00"));
+    await m.scheduler.tick(bot.api, config, at(today, "13:00")); // повторный проход — без дубля
+    expect(early()).toHaveLength(1);
+    expect(early()[0]).toMatch(/^🔔 <b>Через неделю<\/b> — Путешествие/);
+
+    // «за день» — накануне срока
+    await m.scheduler.tick(bot.api, config, at(m.dates.shiftDate(inWeek, -1), "09:00"));
+    expect(early()).toHaveLength(2);
+    expect(early()[1]).toMatch(/^🔔 <b>Через день<\/b>/);
+  });
+
+  it("задача без ранних напоминаний ничего лишнего не шлёт", async () => {
+    newTask({ title: "Обычная задача", dueDate: m.dates.shiftDate(today, 7) });
+    await m.scheduler.tick(bot.api, config, at(today, "08:30"));
+    expect(sent("sendMessage").map(textOf).filter((t) => t.includes("Обычная задача"))).toEqual([]);
+  });
+});

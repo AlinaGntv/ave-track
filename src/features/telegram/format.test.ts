@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildDigest,
+  buildEarlyReminder,
   buildMoneyReport,
   buildReminder,
   DIGEST_DONE,
@@ -231,5 +232,26 @@ describe("отчёт по доходам: цели на конкретные м�
     }).text;
     expect(withIncome).toContain("• Октябрь — 50%");
     expect(withIncome).not.toContain("Ноябрь");
+  });
+});
+
+describe("ранние напоминания", () => {
+  it("«Через 2 недели — Путешествие», дата, повтор и заметка", () => {
+    const msg = buildEarlyReminder({
+      task: { title: "Путешествие <Рим>", notes: "Билеты", dueDate: "2026-11-01", dueTime: null, recurring: true, priority: 0 },
+      offset: "2w",
+      today: DATE,
+    });
+    expect(msg.text).toBe("🔔 <b>Через 2 недели</b> — Путешествие &lt;Рим&gt;\nВс, 1 ноября · 🔁\n<i>Билеты</i>");
+    expect(msg.keyboard).toEqual([]);
+  });
+
+  it("время и другой год", () => {
+    const msg = buildEarlyReminder({
+      task: { title: "ДР мамы", notes: null, dueDate: "2027-01-05", dueTime: "10:00", recurring: false, priority: 2 },
+      offset: "1m",
+      today: DATE,
+    });
+    expect(msg.text).toBe("🔔 <b>Через месяц</b> — <b>!!</b> ДР мамы\nВт, 5 января 2027, 10:00");
   });
 });

@@ -12,12 +12,16 @@ import {
   History,
   Plus,
   Repeat,
+  Timer,
+  Bell,
   Trash2,
   X,
 } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
 import { listIcon } from "@/features/lists/icons";
 import { RecurrenceSheet } from "@/features/recurrence/components/RecurrenceSheet";
+import { describeEarly } from "../early";
+import { EarlyRemindersSheet } from "./EarlyRemindersSheet";
 import { describeRecurrence, plural } from "@/features/recurrence/describe";
 import { shiftDate } from "@/shared/lib/dates";
 import { cn } from "@/shared/lib/cn";
@@ -28,6 +32,8 @@ import { Segmented } from "@/shared/ui/Segmented";
 import { Switch } from "@/shared/ui/Switch";
 import {
   cleanDraft,
+  DEFAULT_DURATION,
+  formatDuration,
   draftFromTask,
   emptyDraft,
   nextTempId,
@@ -99,6 +105,7 @@ export function TaskEditorSheet({
   const [draft, setDraft] = useState(initial);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [recurrenceSheet, setRecurrenceSheet] = useState<{ key: number; open: boolean } | null>(null);
+  const [earlySheet, setEarlySheet] = useState<{ key: number; open: boolean } | null>(null);
   const set = (patch: Partial<TaskDraft>) => setDraft((d) => ({ ...d, ...patch }));
 
   const valid = draft.title.trim().length > 0;
@@ -173,7 +180,7 @@ export function TaskEditorSheet({
               label="Дата"
               checked={draft.dueDate != null}
               onChange={(on) =>
-                set(on ? { dueDate: today } : { dueDate: null, dueTime: null, recurrence: null })
+                set(on ? { dueDate: today } : { dueDate: null, dueTime: null, recurrence: null, earlyReminders: [] })
               }
             />
           </Row>
@@ -216,9 +223,31 @@ export function TaskEditorSheet({
               label="Время"
               checked={draft.dueTime != null}
               disabled={draft.dueDate == null}
-              onChange={(on) => set({ dueTime: on ? "09:00" : null })}
+              onChange={(on) => set(on ? { dueTime: "09:00" } : { dueTime: null, durationMinutes: null })}
             />
           </Row>
+          {draft.dueTime != null && (
+            <label className="relative block">
+              <Row icon={Timer} label="Длительность">
+                <span className="flex items-center gap-1 text-[15px] font-semibold text-muted-2">
+                  {formatDuration(draft.durationMinutes ?? DEFAULT_DURATION)}
+                  <ChevronsUpDown size={15} />
+                </span>
+              </Row>
+              <select
+                value={draft.durationMinutes ?? DEFAULT_DURATION}
+                onChange={(e) => set({ durationMinutes: Number(e.target.value) })}
+                aria-label="Длительность"
+                className="absolute inset-0 cursor-pointer opacity-0"
+              >
+                {durationOptions(draft.durationMinutes).map((minutes) => (
+                  <option key={minutes} value={minutes}>
+                    {formatDuration(minutes)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <button
             type="button"
             onClick={() => setRecurrenceSheet((s) => ({ key: (s?.key ?? 0) + 1, open: true }))}
@@ -233,7 +262,34 @@ export function TaskEditorSheet({
               </span>
             </Row>
           </button>
+          <button
+            type="button"
+            disabled={!draft.dueDate}
+            onClick={() => setEarlySheet((s) => ({ key: (s?.key ?? 0) + 1, open: true }))}
+            className="block w-full text-left disabled:opacity-50"
+          >
+            <Row icon={Bell} label="Заранее">
+              <span className="flex min-w-0 max-w-[60%] items-center gap-1 text-[14px] font-semibold text-muted-2">
+                <span className="truncate">
+                  {draft.dueDate ? describeEarly(draft.earlyReminders) : "Нужна дата"}
+                </span>
+                <ChevronRight size={16} className="shrink-0" />
+              </span>
+            </Row>
+          </button>
         </Group>
+
+        {earlySheet && draft.dueDate && (
+          <EarlyRemindersSheet
+            key={earlySheet.key}
+            open={earlySheet.open}
+            value={draft.earlyReminders}
+            dueDate={draft.dueDate}
+            today={today}
+            onClose={() => setEarlySheet((s) => (s ? { ...s, open: false } : s))}
+            onChange={(earlyReminders) => set({ earlyReminders })}
+          />
+        )}
 
         {request.task && request.task.completionCount > 0 && (
           <p className="px-4 pt-2 text-[12px] font-medium text-muted-2">
@@ -368,4 +424,10 @@ export function TaskEditorSheet({
       </form>
     </BottomSheet>
   );
+}
+
+/** Варианты длительности; текущее значение задачи добавляется, если его нет в списке. */
+function durationOptions(current: number | null): number[] {
+  const base = [15, 30, 45, 60, 90, 120, 180, 240, 360, 480];
+  return current != null && !base.includes(current) ? [...base, current].sort((a, b) => a - b) : base;
 }

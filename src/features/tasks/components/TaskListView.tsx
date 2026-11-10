@@ -2,13 +2,13 @@
 
 import { AnimatePresence, motion, Reorder, useDragControls } from "framer-motion";
 import { Check, Flag, GripVertical, RotateCcw, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { startTransition, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { haptic } from "@/shared/lib/haptics";
 import { spring } from "@/shared/ui/motion";
 import { Pressable } from "@/shared/ui/Pressable";
 import { SwipeRow } from "@/shared/ui/SwipeRow";
 import { useToast } from "@/shared/ui/Toast";
-import { completeTaskAction } from "../actions";
+import { completeTaskAction, setListSortAction } from "../actions";
 import { useOptimisticTasks } from "../hooks";
 import {
   defaultsForView,
@@ -16,13 +16,18 @@ import {
   groupForView,
   isDone,
   matchesView,
+  DEFAULT_SORT,
+  isSortableView,
   sortForView,
+  sortKey,
+  type SortMode,
   type TaskItem,
   type TaskView,
 } from "../model";
 import { QuickAdd } from "./QuickAdd";
 import { useQuickAddHandler, useTaskEditor } from "./TaskEditorProvider";
 import type { ListOption } from "./TaskEditorSheet";
+import { SortMenu } from "./SortMenu";
 import { TaskRow } from "./TaskRow";
 
 /** Сколько отмеченная задача остаётся на месте, прежде чем уехать из списка */
@@ -82,6 +87,7 @@ export function TaskListView({
   lists,
   inboxId,
   emptyText,
+  sortMode,
 }: {
   view: TaskView;
   tasks: TaskItem[];
@@ -89,6 +95,8 @@ export function TaskListView({
   lists: ListOption[];
   inboxId: number;
   emptyText: string;
+  /** Сохранённая сортировка экрана (для своих списков, «Все», «С флажком») */
+  sortMode?: SortMode;
 }) {
   const { tasks, keyOf, save, remove, complete, uncomplete, toggleFlag, reorder } = useOptimisticTasks(
     serverTasks,
@@ -101,6 +109,11 @@ export function TaskListView({
   /** Удалённые свайпом, но ещё не подтверждённые (можно отменить) */
   const [hidden, setHidden] = useState<ReadonlySet<number>>(new Set());
   const [dragOrder, setDragOrder] = useState<number[] | null>(null);
+  const [sort, setSort] = useState<SortMode>(sortMode ?? DEFAULT_SORT);
+  const changeSort = (mode: SortMode) => {
+    setSort(mode); // сразу, без ожидания сервера
+    startTransition(() => setListSortAction(sortKey(view), mode));
+  };
   const timers = useRef(new Map<number, ReturnType<typeof setTimeout>>());
 
   const defaultListId = view.type === "list" ? view.listId : inboxId;
@@ -178,6 +191,7 @@ export function TaskListView({
       (t) => !hidden.has(t.id) && (matchesView(t, view, today, showCompleted) || checking.has(t.id)),
     ),
     view,
+    sort,
   );
   const listNames = new Map(lists.map((l) => [l.id, l.name]));
   const showListName = view.type === "smart" && view.kind !== "all";
@@ -212,8 +226,8 @@ export function TaskListView({
     );
   };
 
-  // Пользовательский список: открытые задачи можно перетаскивать, выполненные — ниже без ручек
-  const listView = view.type === "list" ? view : null;
+  // Пользовательский список в режиме «Вручную»: открытые задачи можно перетаскивать, выполненные — ниже без ручек
+  const listView = view.type === "list" && sort === "manual" ? view : null;
   const openInList = listView ? visible.filter((t) => !isDone(t)) : [];
   const doneInList = listView ? visible.filter((t) => isDone(t)) : [];
   const byId = new Map(openInList.map((t) => [t.id, t]));
@@ -226,6 +240,11 @@ export function TaskListView({
 
   return (
     <div className="px-4">
+      {isSortableView(view) && visible.length > 1 && (
+        <div className="-mt-1 mb-2 flex justify-end">
+          <SortMenu value={sort} onChange={changeSort} />
+        </div>
+      )}
       {visible.length === 0 && (
         <motion.p
           initial={{ opacity: 0 }}

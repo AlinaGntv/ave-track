@@ -1,7 +1,9 @@
 import type { Api } from "grammy";
 import { getSettings } from "@/features/settings/server";
 import { nowTimeIn, shiftDate, todayIn } from "@/shared/lib/dates";
-import { sendDigest, sendMoneyReport, sendReminder } from "./bot";
+import { dueEarlyReminders } from "@/features/tasks/early";
+import { getOpenTasks } from "@/features/tasks/server";
+import { sendDigest, sendEarlyReminder, sendMoneyReport, sendReminder } from "./bot";
 import type { TelegramConfig } from "./config";
 import { isDigestDue } from "./schedule";
 import { claimNotification, cleanupNotifications, getDueReminders, releaseNotification } from "./server";
@@ -46,6 +48,12 @@ export async function tick(api: Api, config: TelegramConfig, now = new Date()): 
     await sendOnce("reminder", task.id, `${task.dueDate}T${task.dueTime}`, () =>
       sendReminder(api, config, task.id),
     );
+  }
+
+  // Ранние напоминания («за неделю», «за месяц») — во время утренней сводки.
+  // Ключ — срок + смещение: у повторяющейся задачи с новой датой они придут снова
+  for (const { task, offset, sentFor } of dueEarlyReminders(getOpenTasks(), today, time, settings.digestTime)) {
+    await sendOnce("early", task.id, sentFor, () => sendEarlyReminder(api, config, task, offset));
   }
 
   if (isDigestDue(time, settings.eveningTime, settings.eveningEnabled, EVENING_CATCH_UP_MIN)) {

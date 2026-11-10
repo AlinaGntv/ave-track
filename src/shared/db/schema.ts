@@ -41,12 +41,16 @@ export const tasks = sqliteTable(
     notes: text("notes"),
     dueDate: text("due_date"),
     dueTime: text("due_time"),
+    /** Длительность в минутах (для календаря); null — по умолчанию час */
+    durationMinutes: integer("duration_minutes"),
     /** 0 — нет, 1 — низкий, 2 — средний, 3 — высокий */
     priority: integer("priority").notNull().default(0),
     flagged: integer("flagged", { mode: "boolean" }).notNull().default(false),
     completedAt: integer("completed_at", { mode: "timestamp_ms" }),
     /** JSON-правило повтора, см. features/recurrence */
     recurrence: text("recurrence"),
+    /** Ранние напоминания — JSON-массив вида ["1m","2w","1w"], см. features/tasks/early */
+    earlyReminders: text("early_reminders"),
     sortOrder: integer("sort_order").notNull().default(0),
     createdAt: createdAt(),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" })

@@ -19,6 +19,7 @@ export default function manifest(): MetadataRoute.Manifest {
     ],
     shortcuts: [
       { name: "Сегодня", url: "/today", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
+      { name: "Календарь", url: "/calendar", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
       { name: "Деньги", url: "/money", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
     ],
   };

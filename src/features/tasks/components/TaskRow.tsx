@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Flag, ListChecks, Repeat } from "lucide-react";
+import { Bell, Flag, ListChecks, Repeat } from "lucide-react";
 import type { ReactNode } from "react";
 import { cn } from "@/shared/lib/cn";
 import { spring } from "@/shared/ui/motion";
@@ -62,6 +62,7 @@ export function TaskRow({
               <span className={cn("inline-flex items-center gap-1", overdue && "font-bold text-fg")}>
                 {due}
                 {task.recurrence && <Repeat size={12} aria-label="Повторяется" />}
+                {task.earlyReminders.length > 0 && <Bell size={12} aria-label="Есть напоминания заранее" />}
               </span>
             )}
             {listName && <span>{listName}</span>}

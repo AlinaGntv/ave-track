@@ -1,0 +1,1 @@
+ALTER TABLE `tasks` ADD `early_reminders` text;

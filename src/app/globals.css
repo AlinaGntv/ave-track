@@ -16,6 +16,15 @@
   --on-ink: #ffffff;
   --on-ink-muted: rgba(255, 255, 255, 0.72);
   --shadow: 0 10px 30px -12px rgba(20, 20, 30, 0.18);
+  /* Тона блоков календаря (списки различаются оттенками серого) */
+  --tone-1: #2b2b2c;
+  --on-tone-1: #ffffff;
+  --tone-2: #6b6b70;
+  --on-tone-2: #ffffff;
+  --tone-3: #d4d4da;
+  --on-tone-3: #1e1e1f;
+  --tone-4: #ececf0;
+  --on-tone-4: #1e1e1f;
   color-scheme: light;
 }
 
@@ -32,6 +41,15 @@
   --on-ink: #141415;
   --on-ink-muted: rgba(20, 20, 21, 0.65);
   --shadow: 0 10px 30px -12px rgba(0, 0, 0, 0.6);
+  /* Тона блоков календаря (списки различаются оттенками серого) */
+  --tone-1: #f1f1f2;
+  --on-tone-1: #141415;
+  --tone-2: #a3a3a9;
+  --on-tone-2: #141415;
+  --tone-3: #3a3a3e;
+  --on-tone-3: #f3f3f4;
+  --tone-4: #26262a;
+  --on-tone-4: #f3f3f4;
   color-scheme: dark;
 }
 
@@ -49,6 +67,14 @@
   --color-on-ink: var(--on-ink);
   --color-on-ink-muted: var(--on-ink-muted);
   --shadow-soft: var(--shadow);
+  --color-tone-1: var(--tone-1);
+  --color-on-tone-1: var(--on-tone-1);
+  --color-tone-2: var(--tone-2);
+  --color-on-tone-2: var(--on-tone-2);
+  --color-tone-3: var(--tone-3);
+  --color-on-tone-3: var(--on-tone-3);
+  --color-tone-4: var(--tone-4);
+  --color-on-tone-4: var(--on-tone-4);
   --radius-card: 28px;
 }
 

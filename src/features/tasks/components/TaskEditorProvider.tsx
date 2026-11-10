@@ -97,6 +97,20 @@ export function TaskEditorProvider({
     return () => window.removeEventListener(QUICK_ADD_EVENT, onQuickAdd);
   }, [openEditor, toast]);
 
+  // Клавиша N на компьютере — новая задача (если не печатаем в поле и окно ещё не открыто)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() !== "n" && e.key.toLowerCase() !== "т") return; // «т» — та же клавиша в русской раскладке
+      if (e.metaKey || e.ctrlKey || e.altKey || e.repeat) return;
+      const target = e.target as HTMLElement | null;
+      if (target?.closest("input, textarea, select, [contenteditable=true], [role=dialog]")) return;
+      e.preventDefault();
+      window.dispatchEvent(new CustomEvent(QUICK_ADD_EVENT));
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   const api = useMemo(() => ({ openEditor, registerQuickAdd }), [openEditor, registerQuickAdd]);
   const close = useCallback(() => setState((prev) => (prev ? { ...prev, open: false } : prev)), []);
 

@@ -65,7 +65,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={api}>
       {children}
-      <div className="pointer-events-none fixed inset-x-0 bottom-[calc(92px+env(safe-area-inset-bottom))] z-[60] mx-auto flex max-w-md justify-center px-4">
+      <div className="pointer-events-none fixed inset-x-0 bottom-[calc(92px+env(safe-area-inset-bottom))] z-[60] mx-auto flex max-w-md justify-center px-4 lg:bottom-6 lg:left-64">
         <AnimatePresence mode="popLayout">
           {toast && (
             <motion.div

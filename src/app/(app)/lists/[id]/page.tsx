@@ -32,6 +32,7 @@ export default async function ListPage({ params }: { params: Promise<{ id: strin
         lists={getLists()}
         inboxId={inboxId}
         emptyText="В этом списке пока пусто"
+        sortMode={getSettings().listSort[`list:${id}`]}
       />
     </>
   );

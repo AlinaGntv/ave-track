@@ -3,7 +3,7 @@
 import { motion } from "framer-motion";
 import { Plus } from "lucide-react";
 import { usePathname } from "next/navigation";
-import { isActive, navItems, QUICK_ADD_EVENT, type NavItem } from "@/shared/navigation/nav";
+import { isActive, QUICK_ADD_EVENT, tabItems, type NavItem } from "@/shared/navigation/nav";
 import { cn } from "@/shared/lib/cn";
 import { spring } from "./motion";
 import { Pressable, PressableLink } from "./Pressable";
@@ -37,14 +37,14 @@ function Tab({ item, active }: { item: NavItem; active: boolean }) {
 
 export function TabBar() {
   const pathname = usePathname();
-  const mid = Math.ceil(navItems.length / 2);
+  const mid = Math.ceil(tabItems.length / 2);
   const render = (items: NavItem[]) =>
     items.map((item) => <Tab key={item.href} item={item} active={isActive(item, pathname)} />);
 
   return (
-    <nav className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-line/70 bg-bg/85 backdrop-blur-xl md:inset-x-auto md:bottom-4 md:left-1/2 md:w-[calc(28rem-2rem)] md:-translate-x-1/2 md:rounded-[28px] md:border md:pb-0 md:shadow-soft">
+    <nav className="pb-safe fixed inset-x-0 bottom-0 z-40 lg:hidden border-t border-line/70 bg-bg/85 backdrop-blur-xl md:inset-x-auto md:bottom-4 md:left-1/2 md:w-[calc(28rem-2rem)] md:-translate-x-1/2 md:rounded-[28px] md:border md:pb-0 md:shadow-soft">
       <div className="mx-auto flex h-[72px] max-w-md items-center px-4">
-        {render(navItems.slice(0, mid))}
+        {render(tabItems.slice(0, mid))}
         <div className="flex flex-1 justify-center">
           <Pressable
             aria-label="Добавить"
@@ -54,7 +54,7 @@ export function TabBar() {
             <Plus size={24} strokeWidth={2.2} />
           </Pressable>
         </div>
-        {render(navItems.slice(mid))}
+        {render(tabItems.slice(mid))}
       </div>
     </nav>
   );

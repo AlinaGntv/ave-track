@@ -1,4 +1,4 @@
-import { CalendarDays, House, Settings, Wallet, type LucideIcon } from "lucide-react";
+import { CalendarCheck, CalendarRange, House, Settings, Wallet, type LucideIcon } from "lucide-react";
 
 export type NavItem = {
   href: string;
@@ -6,19 +6,30 @@ export type NavItem = {
   icon: LucideIcon;
   /** Какие пути подсвечивают этот пункт (по умолчанию — href и вложенные) */
   match?: (pathname: string) => boolean;
+  /** Показывать во вкладках на телефоне (на компьютере в боковой панели видны все) */
+  tab?: boolean;
 };
 
 /**
  * Реестр разделов. Новый модуль = новая запись здесь.
- * Таб-бар делит пункты пополам и ставит кнопку «+» посередине.
+ * Таб-бар (телефон) берёт пункты с tab: true, делит пополам и ставит «+» посередине;
+ * боковая панель (компьютер) показывает все пункты.
  */
 export const navItems: NavItem[] = [
-  { href: "/", label: "Главная", icon: House,   match: (p) => p === "/" || p.startsWith("/lists/") || p.startsWith("/smart/"),
+  {
+    href: "/",
+    label: "Главная",
+    icon: House,
+    match: (p) => p === "/" || p.startsWith("/lists/") || p.startsWith("/smart/"),
+    tab: true,
   },
-  { href: "/today", label: "Сегодня", icon: CalendarDays },
-  { href: "/money", label: "Деньги", icon: Wallet },
+  { href: "/today", label: "Сегодня", icon: CalendarCheck, tab: true },
+  { href: "/calendar", label: "Календарь", icon: CalendarRange, tab: true },
+  { href: "/money", label: "Деньги", icon: Wallet, tab: true },
   { href: "/settings", label: "Настройки", icon: Settings },
 ];
+
+export const tabItems = navItems.filter((item) => item.tab);
 
 export function isActive(item: NavItem, pathname: string): boolean {
   if (item.match) return item.match(pathname);

@@ -10,7 +10,9 @@ import {
   formatDueLabel,
   groupForView,
   matchesView,
+  isSortableView,
   sortForView,
+  sortKey,
   taskFromDraft,
   type TaskItem,
 } from "./model";
@@ -27,10 +29,12 @@ function task(patch: Partial<TaskItem> = {}): TaskItem {
     notes: null,
     dueDate: null,
     dueTime: null,
+    durationMinutes: null,
     priority: 0,
     flagged: false,
     completedAt: null,
     recurrence: null,
+    earlyReminders: [],
     completionCount: 0,
     lastCompletedAt: null,
     sortOrder: seq,
@@ -193,5 +197,34 @@ describe("выполнение", () => {
 
   it("повтор без даты сбрасывается при сохранении", () => {
     expect(cleanDraft({ ...emptyDraft(1), title: "x", recurrence: daily }).recurrence).toBeNull();
+  });
+});
+
+describe("сортировка в списках", () => {
+  const list = { type: "list", listId: 1 } as const;
+  const far = task({ title: "Банк", dueDate: "2026-12-01", sortOrder: 1 });
+  const overdue = task({ title: "Яблоки", dueDate: "2026-10-10", sortOrder: 2 });
+  const noDate = task({ title: "Абрикос", priority: 3, sortOrder: 3 });
+  const soon = task({ title: "вода", dueDate: "2026-10-18", dueTime: "09:00", sortOrder: 4 });
+  const done = task({ title: "Готово", dueDate: "2026-10-01", completedAt: 1, sortOrder: 0 });
+  const all = [far, overdue, noDate, soon, done];
+  const titles = (mode?: Parameters<typeof sortForView>[2]) => sortForView(all, list, mode).map((t) => t.title);
+
+  it("по умолчанию — по сроку: просроченные и ближайшие сверху, без даты в конце, выполненные внизу", () => {
+    expect(titles()).toEqual(["Яблоки", "вода", "Банк", "Абрикос", "Готово"]);
+  });
+
+  it("по приоритету, по названию (без учёта регистра), вручную", () => {
+    expect(titles("priority")).toEqual(["Абрикос", "Яблоки", "вода", "Банк", "Готово"]);
+    expect(titles("title")).toEqual(["Абрикос", "Банк", "вода", "Яблоки", "Готово"]);
+    expect(titles("manual")).toEqual(["Банк", "Яблоки", "Абрикос", "вода", "Готово"]);
+  });
+
+  it("«Сегодня» и «Запланированные» всегда по сроку, режим не влияет", () => {
+    const view = { type: "smart", kind: "scheduled" } as const;
+    expect(sortForView([far, soon], view, "title").map((t) => t.title)).toEqual(["вода", "Банк"]);
+    expect(isSortableView(view)).toBe(false);
+    expect(isSortableView({ type: "smart", kind: "flagged" })).toBe(true);
+    expect(sortKey(list)).toBe("list:1");
   });
 });

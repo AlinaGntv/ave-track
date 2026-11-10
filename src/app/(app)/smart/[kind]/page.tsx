@@ -30,6 +30,7 @@ export default async function SmartListPage({ params }: { params: Promise<{ kind
         lists={getLists()}
         inboxId={getInboxListId()}
         emptyText={meta.empty}
+        sortMode={getSettings().listSort[`smart:${kind}`]}
       />
     </>
   );

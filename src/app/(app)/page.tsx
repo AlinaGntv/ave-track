@@ -10,6 +10,8 @@ import { SendReportButton } from "@/features/telegram/components/SendReportButto
 import { getTelegramConfig } from "@/features/telegram/config";
 import { countCompleted, getOpenTasks } from "@/features/tasks/server";
 import { formatDate, todayIn } from "@/shared/lib/dates";
+import { Settings } from "lucide-react";
+import { PressableLink } from "@/shared/ui/Pressable";
 import { RefreshButton } from "@/shared/ui/RefreshButton";
 import { SectionTitle } from "@/shared/ui/ScreenHeader";
 
@@ -28,6 +30,16 @@ export default function HomePage() {
         <div className="flex items-center">
           <RefreshButton size="sm" />
           {getTelegramConfig() && <SendReportButton />}
+          {/* Настройки — не во вкладках (там календарь), а здесь, как аватар в макете */}
+          <PressableLink
+            href="/settings"
+            aria-label="Настройки"
+            className="flex h-11 w-11 shrink-0 items-center justify-center lg:hidden"
+          >
+            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-surface">
+              <Settings size={17} />
+            </span>
+          </PressableLink>
         </div>
       </div>
       <HomeMoneyHero

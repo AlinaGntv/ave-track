@@ -15,6 +15,20 @@
       "when": 1792256284992,
       "tag": "0001_goal_period",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1794268603591,
+      "tag": "0002_early_reminders",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1794269234414,
+      "tag": "0003_task_duration",
+      "breakpoints": true
     }
   ]
 }

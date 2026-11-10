@@ -17,6 +17,8 @@ const settingsSchema = z.object({
     .regex(/^([01]\d|2[0-3]):[0-5]\d$/)
     .default("18:00"),
   eveningEnabled: z.boolean().default(true),
+  /** Сортировка списков: ключ экрана ("list:3", "smart:all") → режим; общая для всех устройств */
+  listSort: z.record(z.string(), z.enum(["due", "priority", "title", "manual"])).default({}),
   /** Премиум-эмодзи для сообщений бота: слот → { id, alt } (настраивается командой /emoji) */
   customEmoji: z
     .record(z.string(), z.object({ id: z.string().regex(/^\d{1,30}$/), alt: z.string().min(1).max(16) }))

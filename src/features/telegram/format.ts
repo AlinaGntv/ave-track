@@ -3,6 +3,7 @@ import { format, parseISO, startOfMonth, subMonths } from "date-fns";
 import { ru } from "date-fns/locale";
 import { goalProgress, inRange, periodRange, sumInRange, type GoalItem, type MoneyEntryItem } from "@/features/money/model";
 import { plural } from "@/features/recurrence/describe";
+import { earlyHeadline } from "@/features/tasks/early";
 import { formatDayTitle, formatDueLabel, PRIORITIES, type Priority } from "@/features/tasks/model";
 import { formatDate } from "@/shared/lib/dates";
 import { formatMoney } from "@/shared/lib/money";
@@ -312,4 +313,33 @@ export function buildMoneyReport({
   }
 
   return { text: lines.join("\n"), keyboard };
+}
+
+// ───────────── ранние напоминания ─────────────
+
+/**
+ * «🔔 Через 2 недели — Путешествие» + дата (и время) срока, заметка.
+ * Кнопок нет: задача ещё впереди, отмечать её выполненной рано.
+ */
+export function buildEarlyReminder({
+  task,
+  offset,
+  today,
+  emoji,
+}: {
+  task: { title: string; notes: string | null; dueDate: string; dueTime: string | null; recurring: boolean; priority: Priority };
+  offset: string;
+  today: string;
+  emoji?: CustomEmojiMap;
+}): BotMessage {
+  const e = emojiRenderer(emoji);
+  const marks = PRIORITIES[task.priority]?.marks;
+  const sameYear = task.dueDate.slice(0, 4) === today.slice(0, 4);
+  const when = capitalize(formatDate(task.dueDate, sameYear ? "EEEEEE, d MMMM" : "EEEEEE, d MMMM yyyy"));
+  const lines = [
+    `${e("early")} <b>${earlyHeadline(offset)}</b> — ${marks ? `<b>${marks}</b> ` : ""}${escapeHtml(task.title)}`,
+    `${when}${task.dueTime ? `, ${task.dueTime}` : ""}${task.recurring ? ` · ${e("repeat")}` : ""}`,
+  ];
+  if (task.notes) lines.push(`<i>${escapeHtml(truncate(task.notes, 300))}</i>`);
+  return { text: lines.join("\n"), keyboard: [] };
 }

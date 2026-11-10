@@ -13,6 +13,7 @@ export const EMOJI_SLOTS = {
   open: { char: "◻️", label: "задача", hint: "невыполненная задача" },
   done: { char: "✅", label: "готово", hint: "выполненная задача" },
   reminder: { char: "⏰", label: "напоминание", hint: "напоминание по времени" },
+  early: { char: "🔔", label: "заранее", hint: "напоминание за несколько дней" },
   repeat: { char: "🔁", label: "повтор", hint: "повторяющаяся задача" },
   added: { char: "➕", label: "добавлено", hint: "задача добавлена через /add" },
 } as const;

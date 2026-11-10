@@ -94,7 +94,7 @@ export function BottomSheet({
                   }
                 : undefined
             }
-            className="pb-safe fixed inset-x-0 bottom-0 z-50 mx-auto flex max-h-[92dvh] max-w-md flex-col rounded-t-[32px] bg-bg shadow-soft md:bottom-4 md:rounded-[32px]"
+            className="pb-safe fixed inset-x-0 bottom-0 z-50 mx-auto flex max-h-[92dvh] max-w-md flex-col rounded-t-[32px] bg-bg shadow-soft md:bottom-4 md:rounded-[32px] lg:top-[7vh] lg:bottom-auto lg:max-h-[86dvh] lg:max-w-lg lg:pb-2"
             initial={{ y: "100%" }}
             animate={{ y: 0 }}
             exit={{ y: "100%" }}

@@ -3,6 +3,7 @@ import { differenceInCalendarDays, format, parseISO } from "date-fns";
 import { ru } from "date-fns/locale";
 import { nextDueAfterCompletion } from "@/features/recurrence/next";
 import { normalizeRecurrence, type Recurrence } from "@/features/recurrence/rule";
+import { normalizeEarly, type EarlyOffset } from "./early";
 
 export type Priority = 0 | 1 | 2 | 3;
 
@@ -23,10 +24,14 @@ export type TaskItem = {
   notes: string | null;
   dueDate: string | null;
   dueTime: string | null;
+  /** Длительность в минутах для календаря; null — по умолчанию (час) */
+  durationMinutes: number | null;
   priority: Priority;
   flagged: boolean;
   completedAt: number | null;
   recurrence: Recurrence | null;
+  /** Ранние напоминания: ["1m","2w","1w"] (см. early.ts) */
+  earlyReminders: EarlyOffset[];
   /** Сколько раз выполнялась (история task_completions) — для «после N повторений» */
   completionCount: number;
   lastCompletedAt: number | null;
@@ -41,9 +46,11 @@ export type TaskDraft = {
   listId: number;
   dueDate: string | null;
   dueTime: string | null;
+  durationMinutes: number | null;
   priority: Priority;
   flagged: boolean;
   recurrence: Recurrence | null;
+  earlyReminders: EarlyOffset[];
   /** key — стабильный клиентский ключ для ещё не сохранённых подзадач */
   subtasks: Array<{ id?: number; key?: string; title: string; done: boolean }>;
 };
@@ -123,16 +130,55 @@ export function compareManual(a: TaskItem, b: TaskItem): number {
   return a.sortOrder - b.sortOrder || Math.abs(a.id) - Math.abs(b.id);
 }
 
-export function sortForView(tasks: TaskItem[], view: TaskView): TaskItem[] {
+// ───────────── режимы сортировки ─────────────
+
+export const SORT_MODES = ["due", "priority", "title", "manual"] as const;
+export type SortMode = (typeof SORT_MODES)[number];
+
+export const SORT_LABELS: Record<SortMode, string> = {
+  due: "По сроку",
+  priority: "По приоритету",
+  title: "По названию",
+  manual: "Вручную",
+};
+
+export function isSortMode(value: unknown): value is SortMode {
+  return typeof value === "string" && (SORT_MODES as readonly string[]).includes(value);
+}
+
+/**
+ * Где пользователь выбирает сортировку: свои списки, «Все» и «С флажком».
+ * «Сегодня» и «Запланированные» всегда по сроку (сгруппированы по датам), «Выполненные» — по дате выполнения.
+ */
+export function isSortableView(view: TaskView): boolean {
+  return view.type === "list" || view.kind === "all" || view.kind === "flagged";
+}
+
+/** Ключ, под которым запоминается выбор сортировки для экрана */
+export function sortKey(view: TaskView): string {
+  return view.type === "list" ? `list:${view.listId}` : `smart:${view.kind}`;
+}
+
+const SORT_COMPARE: Record<SortMode, (a: TaskItem, b: TaskItem) => number> = {
+  // Ближайшие сроки сверху (просроченные — первыми), без даты — в конце
+  due: compareByDue,
+  priority: (a, b) => b.priority - a.priority || compareByDue(a, b),
+  title: (a, b) => a.title.localeCompare(b.title, "ru", { sensitivity: "base", numeric: true }) || compareByDue(a, b),
+  manual: compareManual,
+};
+
+/** По умолчанию — по сроку: так проще ориентироваться, чем в порядке добавления. */
+export const DEFAULT_SORT: SortMode = "due";
+
+export function sortForView(tasks: TaskItem[], view: TaskView, mode: SortMode = DEFAULT_SORT): TaskItem[] {
   const copy = [...tasks];
-  // Списки и «Все» (сгруппированы по спискам) — в ручном порядке, как в Reminders
-  if (view.type === "list" || view.kind === "all") {
-    return copy.sort((a, b) => Number(isDone(a)) - Number(isDone(b)) || compareManual(a, b));
-  }
-  if (view.kind === "completed") {
+  if (view.type === "smart" && view.kind === "completed") {
     return copy.sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0));
   }
-  return copy.sort(compareByDue);
+  if (!isSortableView(view)) return copy.sort(compareByDue);
+  // Выполненные (когда показаны) — всегда внизу
+  const compare = SORT_COMPARE[mode];
+  return copy.sort((a, b) => Number(isDone(a)) - Number(isDone(b)) || compare(a, b));
 }
 
 export type TaskGroup = { key: string; title: string | null; tasks: TaskItem[] };
@@ -209,6 +255,24 @@ export function formatDueLabel(dueDate: string | null, dueTime: string | null, t
   return dueTime ? `${day}, ${dueTime}` : day;
 }
 
+// ───────────── длительность ─────────────
+
+export const DEFAULT_DURATION = 60;
+
+/** 5 минут … сутки, шаг 5 минут; null остаётся null (значит «по умолчанию») */
+export function clampDuration(minutes: number | null | undefined): number | null {
+  if (minutes == null || !Number.isFinite(minutes)) return null;
+  return Math.min(24 * 60, Math.max(5, Math.round(minutes / 5) * 5));
+}
+
+/** «30 мин», «1 ч», «1 ч 30 мин» */
+export function formatDuration(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h === 0) return `${m} мин`;
+  return m === 0 ? `${h} ч` : `${h} ч ${m} мин`;
+}
+
 // ───────────── черновики ─────────────
 
 export function emptyDraft(listId: number): TaskDraft {
@@ -218,9 +282,11 @@ export function emptyDraft(listId: number): TaskDraft {
     listId,
     dueDate: null,
     dueTime: null,
+    durationMinutes: null,
     priority: 0,
     flagged: false,
     recurrence: null,
+    earlyReminders: [],
     subtasks: [],
   };
 }
@@ -246,16 +312,18 @@ export function draftFromTask(task: TaskItem): TaskDraft {
     listId: task.listId,
     dueDate: task.dueDate,
     dueTime: task.dueTime,
+    durationMinutes: task.durationMinutes,
     priority: task.priority,
     flagged: task.flagged,
     recurrence: task.recurrence,
+    earlyReminders: task.earlyReminders,
     subtasks: task.subtasks.map((s) => ({ id: s.id, title: s.title, done: s.completedAt != null })),
   };
 }
 
 /**
  * Нормализация перед сохранением: обрезка пробелов, пустые подзадачи выкидываются,
- * время и повтор без даты сбрасываются (повтор отсчитывается от даты задачи).
+ * время, повтор и ранние напоминания без даты сбрасываются (они отсчитываются от даты задачи).
  */
 export function cleanDraft(draft: TaskDraft): TaskDraft {
   return {
@@ -263,7 +331,9 @@ export function cleanDraft(draft: TaskDraft): TaskDraft {
     title: draft.title.trim(),
     notes: draft.notes.trim(),
     dueTime: draft.dueDate ? draft.dueTime : null,
+    durationMinutes: draft.dueDate && draft.dueTime ? clampDuration(draft.durationMinutes) : null,
     recurrence: draft.dueDate && draft.recurrence ? normalizeRecurrence(draft.recurrence) : null,
+    earlyReminders: draft.dueDate ? normalizeEarly(draft.earlyReminders) : [],
     subtasks: draft.subtasks
       .map((s) => ({ ...s, title: s.title.trim() }))
       .filter((s) => s.title.length > 0),
@@ -287,10 +357,12 @@ export function taskFromDraft(draft: TaskDraft, existing?: TaskItem): TaskItem {
     notes: draft.notes || null,
     dueDate: draft.dueDate,
     dueTime: draft.dueDate ? draft.dueTime : null,
+    durationMinutes: draft.dueDate && draft.dueTime ? clampDuration(draft.durationMinutes) : null,
     priority: draft.priority,
     flagged: draft.flagged,
     completedAt: existing?.completedAt ?? null,
     recurrence: draft.dueDate ? draft.recurrence : null,
+    earlyReminders: draft.dueDate ? normalizeEarly(draft.earlyReminders) : [],
     completionCount: existing?.completionCount ?? 0,
     lastCompletedAt: existing?.lastCompletedAt ?? null,
     sortOrder:
