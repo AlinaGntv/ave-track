@@ -183,9 +183,26 @@ git pull && npm ci && npm run build && pm2 reload ecosystem.config.cjs
 **Восстановление:**
 
 1. Остановите web и worker (`docker compose stop` или `pm2 stop all`).
-2. Скопируйте нужный файл на место базы. В Docker: `docker compose cp backups/avetrack-….db web:/data/avetrack.db`.
-3. Удалите рядом лежащие `avetrack.db-wal` и `avetrack.db-shm`, если они есть.
-4. Запустите сервисы снова.
+2. Положите нужный файл на место базы и удалите рядом лежащие `avetrack.db-wal` и `avetrack.db-shm`. В Docker — одной командой (файл `restore.db` в папке проекта):
+   ```bash
+   docker compose run --rm --no-deps --user root -v "$PWD/restore.db:/restore.db:ro" worker \
+     sh -c "rm -f /data/avetrack.db-wal /data/avetrack.db-shm && cp /restore.db /data/avetrack.db && chown node:node /data/avetrack.db"
+   ```
+3. Запустите сервисы снова (`docker compose start`).
+
+**Если файл базы с сервера не забрать** (сервер зависает, нет SSH), но сайт ещё открывается — данные можно вытащить из самих страниц. Откройте сайт, F12 → Console и выполните:
+
+```js
+(async()=>{let o="";for(const p of["/smart/all","/smart/completed","/money","/settings"]){const r=await fetch(p,{headers:{RSC:"1"}});o+="\n=====PAGE "+p+" "+r.status+"\n"+await r.text()}const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([o]));a.download="avetrack_export.txt";a.click()})()
+```
+
+Из скачанного файла скрипт соберёт новую базу — с повторами, заметками, подзадачами, деньгами, целями и настройками:
+
+```bash
+node --import tsx scripts/restore-export.ts avetrack_export.txt restore.db
+```
+
+Дальше — как обычное восстановление выше. Не переносятся только точные даты прошлых выполнений (сохраняется их число), премиум-эмодзи бота и сортировка списков.
 
 ## Установка на телефон (PWA)
 
