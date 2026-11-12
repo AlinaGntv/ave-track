@@ -41,6 +41,11 @@ docker compose up -d
 
 step "Очистка старых образов"
 docker image prune -f >/dev/null
+# Маленький диск: кэш сборки (гигабайты) удаляем — следующая сборка будет дольше, зато место не кончится
+if [ "$(df --output=avail -k / | tail -1)" -lt $((4 * 1024 * 1024)) ]; then
+  docker builder prune -af >/dev/null
+fi
+df -h /
 
 step "Готово"
 docker compose ps

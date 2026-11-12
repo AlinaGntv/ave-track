@@ -16,11 +16,10 @@ RUN apt-get update \
 COPY package.json package-lock.json ./
 RUN npm ci
 
-# ── сборка Next.js
-FROM base AS build
+# ── сборка Next.js. FROM deps, а не копия node_modules: копия заняла бы на диске ещё столько же
+FROM deps AS build
 # Экономная сборка (next.config.ts): маленький VPS не должен зависать от нехватки памяти
 ENV LOW_MEMORY_BUILD=1
-COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build
 
