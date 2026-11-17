@@ -97,6 +97,39 @@ export function getCompletedTasks(opts: {
   return withSubtasks(rows);
 }
 
+/** Завершённые вхождения повторяющихся задач, чья серия всё ещё активна. */
+export function getCompletedRecurringOccurrences(dueFrom: string, dueTo: string): TaskItem[] {
+  const rows = getDb()
+    .select({ taskId: c.taskId, dueDate: c.dueDate, completedAt: c.completedAt })
+    .from(c)
+    .innerJoin(t, eq(c.taskId, t.id))
+    .where(
+      and(
+        isNull(t.completedAt),
+        isNotNull(t.recurrence),
+        isNotNull(c.dueDate),
+        gte(c.dueDate, dueFrom),
+        lte(c.dueDate, dueTo),
+      ),
+    )
+    .all();
+  if (rows.length === 0) return [];
+
+  const tasks = new Map(withSubtasks(
+    getDb()
+      .select()
+      .from(t)
+      .where(inArray(t.id, [...new Set(rows.map((r) => r.taskId))]))
+      .all(),
+  ).map((task) => [task.id, task]));
+
+  return rows.flatMap((row) => {
+    const task = tasks.get(row.taskId);
+    if (!task || !row.dueDate) return [];
+    return [{ ...task, dueDate: row.dueDate, completedAt: row.completedAt.getTime() }];
+  });
+}
+
 export function countCompleted(): number {
   return (
     getDb()
