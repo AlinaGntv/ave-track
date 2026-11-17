@@ -60,6 +60,38 @@ export function timeAtOffset(offsetY: number, hourHeight: number, snap = 30): st
   return timeOf(Math.max(0, Math.min(DAY_MINUTES - snap, minutes)));
 }
 
+// ───────────── перетаскивание ─────────────
+
+/** Шаг перетаскивания блоков, минут */
+export const DRAG_SNAP = 15;
+
+const snapTo = (minutes: number, snap: number) => Math.round(minutes / snap) * snap;
+
+/**
+ * Перенос блока: pointer — минута под пальцем, grab — где внутри блока его взяли
+ * (минут от начала). Длительность сохраняется, блок не выходит за пределы суток.
+ */
+export function moveBlock(
+  block: { start: number; end: number },
+  pointer: number,
+  grab: number,
+  snap = DRAG_SNAP,
+): { start: number; end: number } {
+  const duration = block.end - block.start;
+  const start = Math.max(0, Math.min(DAY_MINUTES - duration, snapTo(pointer - grab, snap)));
+  return { start, end: start + duration };
+}
+
+/** Растягивание за нижний край: меняется только конец, минимум один шаг. */
+export function resizeBlock(
+  block: { start: number; end: number },
+  pointer: number,
+  snap = DRAG_SNAP,
+): { start: number; end: number } {
+  const end = Math.max(block.start + snap, Math.min(DAY_MINUTES, snapTo(pointer, snap)));
+  return { start: block.start, end };
+}
+
 // ───────────── вхождения задач ─────────────
 
 /**

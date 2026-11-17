@@ -3,6 +3,8 @@ import type { TaskItem } from "@/features/tasks/model";
 import {
   buildCalendar,
   layoutTimed,
+  moveBlock,
+  resizeBlock,
   occurrencesInRange,
   rangeTitle,
   shiftAnchor,
@@ -128,5 +130,26 @@ describe("раскладка по сетке", () => {
     expect(d1!.timed.map((i) => [i.task.title, i.start, i.end])).toEqual([["Встреча", 540, 600]]);
     expect(d2!.timed[0]).toMatchObject({ start: 1380, end: 1440 }); // обрезано полуночью
     expect(d3!.timed).toEqual([]);
+  });
+});
+
+describe("перетаскивание блоков", () => {
+  const block = { start: 9 * 60, end: 10 * 60 }; // 09:00–10:00
+
+  it("переносит с шагом 15 минут, сохраняя длительность", () => {
+    // взяли за середину блока (30 мин) и отпустили на 11:37 → начало 11:07 → 11:00
+    expect(moveBlock(block, 11 * 60 + 37, 30)).toEqual({ start: 660, end: 720 });
+    expect(moveBlock(block, 11 * 60 + 38, 30)).toEqual({ start: 675, end: 735 });
+  });
+
+  it("не выходит за пределы суток", () => {
+    expect(moveBlock(block, 10, 30)).toEqual({ start: 0, end: 60 });
+    expect(moveBlock(block, 24 * 60 + 100, 30)).toEqual({ start: 1380, end: 1440 });
+  });
+
+  it("растягивает за нижний край, минимум 15 минут", () => {
+    expect(resizeBlock(block, 11 * 60 + 20)).toEqual({ start: 540, end: 675 });
+    expect(resizeBlock(block, 8 * 60)).toEqual({ start: 540, end: 555 });
+    expect(resizeBlock(block, 25 * 60)).toEqual({ start: 540, end: 1440 });
   });
 });

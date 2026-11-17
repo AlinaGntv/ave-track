@@ -3,11 +3,11 @@
 import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight, Repeat } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent } from "react";
 import { useQuickAddHandler, useTaskEditor } from "@/features/tasks/components/TaskEditorProvider";
 import type { ListOption } from "@/features/tasks/components/TaskEditorSheet";
 import { useOptimisticTasks } from "@/features/tasks/hooks";
-import { DEFAULT_DURATION, emptyDraft, isDone, PRIORITIES, type TaskItem } from "@/features/tasks/model";
+import { DEFAULT_DURATION, draftFromTask, emptyDraft, isDone, PRIORITIES, type TaskItem } from "@/features/tasks/model";
 import { formatDate, nowTimeIn } from "@/shared/lib/dates";
 import { cn } from "@/shared/lib/cn";
 import { spring } from "@/shared/ui/motion";
@@ -26,6 +26,7 @@ import {
   type CalendarView,
   type TimedItem,
 } from "../model";
+import { useCalendarDrag, type DragPreview } from "./useCalendarDrag";
 
 /** Высота часа в сетке, px */
 const HOUR = 56;
@@ -74,6 +75,7 @@ export function CalendarScreen({
   const { tasks, save, remove, complete, uncomplete } = useOptimisticTasks(serverTasks, today);
   const { openEditor } = useTaskEditor();
   const scroller = useRef<HTMLDivElement>(null);
+  const grid = useRef<HTMLDivElement>(null);
   const [now, setNow] = useState<number | null>(null);
 
   const go = (date: string, nextView: CalendarView) =>
@@ -103,6 +105,28 @@ export function CalendarScreen({
 
   const days = useMemo(() => visibleDays(anchor, view), [anchor, view]);
   const calendar = useMemo(() => buildCalendar(tasks, days), [tasks, days]);
+
+  // Перетаскивание: новое время (и день) подставляется в задачу сразу, без открытия редактора
+  const drag = useCalendarDrag({
+    grid,
+    scroller,
+    hourHeight: HOUR,
+    daysKey: days.join(),
+    onDrop: ({ item, mode, dayIndex, start, end }) => {
+      const task = item.task;
+      save(
+        {
+          ...draftFromTask(task),
+          dueDate: days[dayIndex] ?? item.date,
+          dueTime: timeOf(start),
+          // При переносе фиксируем текущую видимую длительность, включая час по умолчанию.
+          durationMinutes: end - start,
+        },
+        task,
+      );
+    },
+  });
+
   const toneOf = useMemo(() => {
     const index = new Map(lists.map((l, i) => [l.id, i]));
     return (listId: number) => TONES[(index.get(listId) ?? 0) % TONES.length]!;
@@ -126,7 +150,7 @@ export function CalendarScreen({
   useQuickAddHandler(() => createAt(days.includes(today) ? today : days[0]!, null));
 
   const open = (item: CalendarItem) => {
-    if (item.task.id < 0) return;
+    if (item.task.id < 0 || drag.consumeClick()) return;
     openEditor({ task: item.task, onSubmit: (d) => save(d, item.task), onDelete: () => remove(item.task) });
   };
   const toggle = (item: CalendarItem) => {
@@ -136,7 +160,7 @@ export function CalendarScreen({
   };
 
   const onGridClick = (date: string) => (e: MouseEvent<HTMLDivElement>) => {
-    if (e.target !== e.currentTarget) return; // клик по блоку — не создание
+    if (e.target !== e.currentTarget || drag.consumeClick()) return; // клик по блоку или конец перетаскивания
     const rect = e.currentTarget.getBoundingClientRect();
     createAt(date, timeAtOffset(e.clientY - rect.top, HOUR));
   };
@@ -223,7 +247,7 @@ export function CalendarScreen({
 
       {/* Сетка времени */}
       <div ref={scroller} className="no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain px-1 lg:px-3">
-        <div className="relative" style={{ display: "grid", gridTemplateColumns: columns, height: HOUR * 24 }}>
+        <div ref={grid} className="relative" style={{ display: "grid", gridTemplateColumns: columns, height: HOUR * 24 }}>
           <div className="relative">
             {HOURS.map((h) =>
               h === 0 ? null : (
@@ -237,9 +261,10 @@ export function CalendarScreen({
               ),
             )}
           </div>
-          {calendar.map((day) => (
+          {calendar.map((day, dayIndex) => (
             <div
               key={day.date}
+              data-day-col={day.date}
               role="button"
               tabIndex={-1}
               aria-label={`Новая задача на ${formatDate(day.date, "d MMMM")}`}
@@ -250,8 +275,17 @@ export function CalendarScreen({
               }}
             >
               {day.timed.map((item) => (
-                <TimedBlock key={item.key} item={item} tone={toneOf(item.task.listId)} onOpen={() => open(item)} onToggle={() => toggle(item)} />
+                <TimedBlock
+                  key={item.key}
+                  item={item}
+                  tone={toneOf(item.task.listId)}
+                  dragging={drag.preview?.item.key === item.key}
+                  onOpen={() => open(item)}
+                  onToggle={() => toggle(item)}
+                  onDragStart={(e, mode) => drag.start(e, item, mode)}
+                />
               ))}
+              {drag.preview?.dayIndex === dayIndex && <DragGhost preview={drag.preview} tone={toneOf(drag.preview.item.task.listId)} />}
               {day.date === today && now != null && (
                 <div className="pointer-events-none absolute inset-x-0 z-10 flex items-center" style={{ top: (now / 60) * HOUR }}>
                   <span className="-ml-1 h-2.5 w-2.5 rounded-full bg-fg" />
@@ -285,16 +319,38 @@ function AllDayChip({ item, tone, onOpen }: { item: CalendarItem; tone: string; 
   );
 }
 
+/** Куда встанет перетаскиваемая задача — с новым временем */
+function DragGhost({ preview, tone }: { preview: DragPreview; tone: string }) {
+  const { item, start, end } = preview;
+  return (
+    <div
+      className="pointer-events-none absolute inset-x-0 z-20 p-px"
+      style={{ top: (start / 60) * HOUR, height: Math.max(((end - start) / 60) * HOUR, 22) }}
+    >
+      <div className={cn("flex h-full flex-col overflow-hidden rounded-lg px-1.5 py-1 shadow-soft ring-2 ring-fg", tone)}>
+        <p className="truncate text-[11px] leading-tight font-bold">{item.task.title}</p>
+        <p className="truncate text-[10px] font-semibold tabular-nums">
+          {timeOf(start)}–{timeOf(end)}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function TimedBlock({
   item,
   tone,
+  dragging,
   onOpen,
   onToggle,
+  onDragStart,
 }: {
   item: TimedItem;
   tone: string;
+  dragging: boolean;
   onOpen: () => void;
   onToggle: () => void;
+  onDragStart: (e: PointerEvent, mode: "move" | "resize") => void;
 }) {
   const done = isDone(item.task);
   const height = ((item.end - item.start) / 60) * HOUR;
@@ -317,9 +373,11 @@ function TimedBlock({
         tabIndex={0}
         onClick={onOpen}
         onKeyDown={(e) => e.key === "Enter" && onOpen()}
+        onPointerDown={(e) => onDragStart(e, "move")}
         className={cn(
-          "relative flex h-full cursor-pointer overflow-hidden rounded-lg px-1.5 py-1 text-left transition-transform active:scale-[0.98]",
+          "group relative flex h-full cursor-pointer overflow-hidden rounded-lg px-1.5 py-1 text-left transition-transform select-none [-webkit-touch-callout:none] active:scale-[0.98]",
           tone,
+          dragging && "opacity-30",
           item.projected && "opacity-55 [background-image:repeating-linear-gradient(135deg,transparent_0,transparent_6px,rgba(127,127,127,.18)_6px,rgba(127,127,127,.18)_8px)]",
           done && "opacity-40",
         )}
@@ -353,6 +411,18 @@ function TimedBlock({
               )}
             />
           </button>
+        )}
+        {!item.projected && (
+          <span
+            aria-hidden
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              onDragStart(e, "resize");
+            }}
+            className="absolute inset-x-0 bottom-0 flex h-2.5 cursor-ns-resize touch-none items-end justify-center pb-0.5"
+          >
+            <span className="h-[3px] w-5 rounded-full bg-current opacity-0 transition-opacity group-hover:opacity-50 [@media(hover:none)]:opacity-30" />
+          </span>
         )}
       </div>
     </motion.div>
