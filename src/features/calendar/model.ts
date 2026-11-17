@@ -62,8 +62,8 @@ export function timeAtOffset(offsetY: number, hourHeight: number, snap = 30): st
 
 // ───────────── перетаскивание ─────────────
 
-/** Шаг перетаскивания блоков, минут */
-export const DRAG_SNAP = 15;
+/** Шаг переноса и растягивания блоков, минут. Минутный шаг позволяет ставить задачи вплотную. */
+export const DRAG_SNAP = 1;
 
 const snapTo = (minutes: number, snap: number) => Math.round(minutes / snap) * snap;
 

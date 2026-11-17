@@ -136,10 +136,14 @@ describe("раскладка по сетке", () => {
 describe("перетаскивание блоков", () => {
   const block = { start: 9 * 60, end: 10 * 60 }; // 09:00–10:00
 
-  it("переносит с шагом 15 минут, сохраняя длительность", () => {
-    // взяли за середину блока (30 мин) и отпустили на 11:37 → начало 11:07 → 11:00
-    expect(moveBlock(block, 11 * 60 + 37, 30)).toEqual({ start: 660, end: 720 });
-    expect(moveBlock(block, 11 * 60 + 38, 30)).toEqual({ start: 675, end: 735 });
+  it("переносит с шагом в минуту, сохраняя длительность", () => {
+    // взяли за середину блока (30 мин) и отпустили на 11:37 → начало 11:07
+    expect(moveBlock(block, 11 * 60 + 37, 30)).toEqual({ start: 667, end: 727 });
+    expect(moveBlock(block, 11 * 60 + 38, 30)).toEqual({ start: 668, end: 728 });
+  });
+
+  it("позволяет поставить задачу ровно сразу после предыдущей", () => {
+    expect(moveBlock(block, 10 * 60 + 15, 0)).toEqual({ start: 615, end: 675 });
   });
 
   it("не выходит за пределы суток", () => {
@@ -147,9 +151,9 @@ describe("перетаскивание блоков", () => {
     expect(moveBlock(block, 24 * 60 + 100, 30)).toEqual({ start: 1380, end: 1440 });
   });
 
-  it("растягивает за нижний край, минимум 15 минут", () => {
-    expect(resizeBlock(block, 11 * 60 + 20)).toEqual({ start: 540, end: 675 });
-    expect(resizeBlock(block, 8 * 60)).toEqual({ start: 540, end: 555 });
+  it("растягивает за нижний край с шагом в минуту, минимум одну минуту", () => {
+    expect(resizeBlock(block, 11 * 60 + 20)).toEqual({ start: 540, end: 680 });
+    expect(resizeBlock(block, 8 * 60)).toEqual({ start: 540, end: 541 });
     expect(resizeBlock(block, 25 * 60)).toEqual({ start: 540, end: 1440 });
   });
 });
