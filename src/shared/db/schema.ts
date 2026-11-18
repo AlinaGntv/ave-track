@@ -104,6 +104,28 @@ export const moneyGoals = sqliteTable("money_goals", {
   createdAt: createdAt(),
 });
 
+export const timeEntries = sqliteTable(
+  "time_entries",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    name: text("name").notNull(),
+    /** Продолжительность в миллисекундах — как в исходном localStorage. */
+    durationMs: integer("duration_ms").notNull(),
+    /** Время окончания для таймера, выбранные дата/время для ручных записей. */
+    date: integer("date", { mode: "timestamp_ms" }).notNull(),
+    /** ID исходной записи для повторно-безопасного импорта. */
+    sourceId: text("source_id"),
+  },
+  (t) => [index("time_entries_date_idx").on(t.date), uniqueIndex("time_entries_source_idx").on(t.sourceId)],
+);
+
+/** Один активный таймер на весь личный аккаунт. */
+export const timeTrackerSession = sqliteTable("time_tracker_session", {
+  id: integer("id").primaryKey(),
+  name: text("name").notNull(),
+  startedAt: integer("started_at", { mode: "timestamp_ms" }).notNull(),
+});
+
 export const settings = sqliteTable("settings", {
   key: text("key").primaryKey(),
   /** JSON-значение */
