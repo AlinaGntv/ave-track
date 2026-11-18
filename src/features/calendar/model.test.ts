@@ -151,9 +151,9 @@ describe("перетаскивание блоков", () => {
     expect(moveBlock(block, 24 * 60 + 100, 30)).toEqual({ start: 1380, end: 1440 });
   });
 
-  it("растягивает за нижний край с шагом в минуту, минимум одну минуту", () => {
+  it("растягивает за нижний край с шагом в минуту, минимум пять минут", () => {
     expect(resizeBlock(block, 11 * 60 + 20)).toEqual({ start: 540, end: 680 });
-    expect(resizeBlock(block, 8 * 60)).toEqual({ start: 540, end: 541 });
+    expect(resizeBlock(block, 8 * 60)).toEqual({ start: 540, end: 545 });
     expect(resizeBlock(block, 25 * 60)).toEqual({ start: 540, end: 1440 });
   });
 });

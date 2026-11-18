@@ -7,12 +7,14 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent,
 import { useQuickAddHandler, useTaskEditor } from "@/features/tasks/components/TaskEditorProvider";
 import type { ListOption } from "@/features/tasks/components/TaskEditorSheet";
 import { useOptimisticTasks } from "@/features/tasks/hooks";
+import { updateCompletedOccurrenceAction } from "@/features/tasks/actions";
 import { DEFAULT_DURATION, draftFromTask, emptyDraft, isDone, PRIORITIES, type TaskItem } from "@/features/tasks/model";
 import { formatDate, nowTimeIn } from "@/shared/lib/dates";
 import { cn } from "@/shared/lib/cn";
 import { spring } from "@/shared/ui/motion";
 import { Pressable } from "@/shared/ui/Pressable";
 import { RefreshButton } from "@/shared/ui/RefreshButton";
+import { useToast } from "@/shared/ui/Toast";
 import { Segmented } from "@/shared/ui/Segmented";
 import {
   buildCalendar,
@@ -73,6 +75,7 @@ export function CalendarScreen({
   const router = useRouter();
   const view = viewFromUrl ?? "week";
   const { tasks, save, remove, complete, uncomplete } = useOptimisticTasks(serverTasks, today);
+  const toast = useToast();
   const { openEditor } = useTaskEditor();
   const scroller = useRef<HTMLDivElement>(null);
   const grid = useRef<HTMLDivElement>(null);
@@ -114,6 +117,19 @@ export function CalendarScreen({
     daysKey: days.join(),
     onDrop: ({ item, mode, dayIndex, start, end }) => {
       const task = item.task;
+      if (item.completionId != null) {
+        void updateCompletedOccurrenceAction(item.completionId, {
+          dueDate: days[dayIndex] ?? item.date,
+          dueTime: timeOf(start),
+          durationMinutes: end - start,
+        })
+          .then(() => router.refresh())
+          .catch((error) => {
+            console.error(error);
+            toast.show({ message: "Не удалось сохранить изменения" });
+          });
+        return;
+      }
       save(
         {
           ...draftFromTask(task),

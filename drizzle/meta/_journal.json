@@ -29,6 +29,13 @@
       "when": 1794269234414,
       "tag": "0003_task_duration",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1794989637595,
+      "tag": "0004_completion_duration",
+      "breakpoints": true
     }
   ]
 }

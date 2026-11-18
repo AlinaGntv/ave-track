@@ -88,7 +88,7 @@ export function resizeBlock(
   pointer: number,
   snap = DRAG_SNAP,
 ): { start: number; end: number } {
-  const end = Math.max(block.start + snap, Math.min(DAY_MINUTES, snapTo(pointer, snap)));
+  const end = Math.max(block.start + Math.max(snap, 5), Math.min(DAY_MINUTES, snapTo(pointer, snap)));
   return { start: block.start, end };
 }
 
@@ -132,6 +132,8 @@ export type CalendarItem = {
   task: TaskItem;
   date: string;
   projected: boolean;
+  /** ID записи истории для завершённого вхождения повтора */
+  completionId?: number;
 };
 
 export type TimedItem = CalendarItem & {
@@ -180,7 +182,10 @@ export function layoutTimed<T extends { start: number; end: number }>(items: T[]
 export type CalendarDay = { date: string; allDay: CalendarItem[]; timed: TimedItem[] };
 
 /** Задачи по дням экрана: «весь день» (без времени) и блоки по времени с раскладкой. */
-export function buildCalendar(tasks: readonly TaskItem[], days: string[]): CalendarDay[] {
+export function buildCalendar(
+  tasks: readonly (TaskItem & { completionId?: number })[],
+  days: string[],
+): CalendarDay[] {
   const from = days[0]!;
   const to = days.at(-1)!;
   const byDay = new Map<string, { allDay: CalendarItem[]; timed: Array<CalendarItem & { start: number; end: number }> }>(
@@ -191,7 +196,13 @@ export function buildCalendar(tasks: readonly TaskItem[], days: string[]): Calen
     for (const { date, projected } of occurrencesInRange(task, from, to)) {
       const day = byDay.get(date);
       if (!day) continue;
-      const item: CalendarItem = { key: `${task.id}:${date}`, task, date, projected };
+      const item: CalendarItem = {
+        key: task.completionId != null ? `completion:${task.completionId}` : `${task.id}:${date}`,
+        task,
+        date,
+        projected,
+        completionId: task.completionId,
+      };
       if (!task.dueTime) {
         day.allDay.push(item);
         continue;

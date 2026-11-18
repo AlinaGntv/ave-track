@@ -7,7 +7,7 @@ import { getSettings, setSetting } from "@/features/settings/server";
 import { todayIn } from "@/shared/lib/dates";
 import { MAX_EARLY_REMINDERS, type EarlyOffset } from "./early";
 import { cleanDraft, SORT_MODES, type CompletionOutcome, type SortMode, type TaskDraft } from "./model";
-import { completeTask, deleteTask, reorderTasks, saveTask, uncompleteTask } from "./server";
+import { completeTask, deleteTask, reorderTasks, saveTask, uncompleteTask, updateCompletedOccurrence } from "./server";
 
 const id = z.number().int().positive();
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -55,6 +55,18 @@ export async function completeTaskAction(taskId: number): Promise<CompletionOutc
 
 export async function uncompleteTaskAction(taskId: number, restoreDueDate: string | null): Promise<void> {
   uncompleteTask(id.parse(taskId), date.nullable().parse(restoreDueDate));
+  refresh();
+}
+
+export async function updateCompletedOccurrenceAction(
+  completionId: number,
+  values: { dueDate: string; dueTime: string; durationMinutes: number },
+): Promise<void> {
+  updateCompletedOccurrence(id.parse(completionId), {
+    dueDate: date.parse(values.dueDate),
+    dueTime: time.parse(values.dueTime),
+    durationMinutes: z.number().int().min(5).max(1440).parse(values.durationMinutes),
+  });
   refresh();
 }
 

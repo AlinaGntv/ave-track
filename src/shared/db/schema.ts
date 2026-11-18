@@ -74,6 +74,8 @@ export const taskCompletions = sqliteTable(
       .references(() => tasks.id, { onDelete: "cascade" }),
     /** За какое вхождение повтора выполнено */
     dueDate: text("due_date"),
+    dueTime: text("due_time"),
+    durationMinutes: integer("duration_minutes"),
     completedAt: integer("completed_at", { mode: "timestamp_ms" }).notNull(),
   },
   (t) => [index("completions_task_idx").on(t.taskId)],

@@ -98,9 +98,12 @@ export function getCompletedTasks(opts: {
 }
 
 /** Завершённые вхождения повторяющихся задач, чья серия всё ещё активна. */
-export function getCompletedRecurringOccurrences(dueFrom: string, dueTo: string): TaskItem[] {
+export function getCompletedRecurringOccurrences(
+  dueFrom: string,
+  dueTo: string,
+): Array<TaskItem & { completionId: number }> {
   const rows = getDb()
-    .select({ taskId: c.taskId, dueDate: c.dueDate, completedAt: c.completedAt })
+    .select({ id: c.id, taskId: c.taskId, dueDate: c.dueDate, dueTime: c.dueTime, durationMinutes: c.durationMinutes, completedAt: c.completedAt })
     .from(c)
     .innerJoin(t, eq(c.taskId, t.id))
     .where(
@@ -126,8 +129,27 @@ export function getCompletedRecurringOccurrences(dueFrom: string, dueTo: string)
   return rows.flatMap((row) => {
     const task = tasks.get(row.taskId);
     if (!task || !row.dueDate) return [];
-    return [{ ...task, dueDate: row.dueDate, completedAt: row.completedAt.getTime() }];
+    return [{
+      ...task,
+      dueDate: row.dueDate,
+      dueTime: row.dueTime ?? task.dueTime,
+      durationMinutes: row.durationMinutes ?? task.durationMinutes,
+      completedAt: row.completedAt.getTime(),
+      completionId: row.id,
+    }];
   });
+}
+
+/** Изменить время или длительность конкретного выполненного вхождения, не затрагивая серию. */
+export function updateCompletedOccurrence(
+  completionId: number,
+  values: { dueDate: string; dueTime: string; durationMinutes: number },
+): void {
+  getDb()
+    .update(c)
+    .set(values)
+    .where(eq(c.id, completionId))
+    .run();
 }
 
 export function countCompleted(): number {
@@ -235,7 +257,15 @@ export function completeTask(id: number, today: string): CompletionOutcome {
     const outcome = completionOutcome(task!, today);
     const next = applyCompletion(task!, outcome, now);
 
-    tx.insert(c).values({ taskId: id, dueDate: row.dueDate, completedAt: new Date(now) }).run();
+    tx.insert(c)
+      .values({
+        taskId: id,
+        dueDate: row.dueDate,
+        dueTime: row.dueTime,
+        durationMinutes: row.durationMinutes,
+        completedAt: new Date(now),
+      })
+      .run();
     tx.update(t)
       .set({
         dueDate: next.dueDate,
