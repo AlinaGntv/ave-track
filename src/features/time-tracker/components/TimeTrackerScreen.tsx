@@ -149,6 +149,7 @@ export function TimeTrackerScreen({
 
   const report = useMemo(() => {
     const days = new Map<string, number>();
+    const tasks = new Map<string, { name: string; durationMs: number }>();
     let total = 0;
     if (reportStart && reportEnd && reportStart <= reportEnd) {
       for (const record of serverEntries) {
@@ -156,9 +157,18 @@ export function TimeTrackerScreen({
         if (date < reportStart || date > reportEnd) continue;
         total += record.durationMs;
         days.set(date, (days.get(date) ?? 0) + record.durationMs);
+        const name = record.name.trim() || "Без названия";
+        const key = name.toLocaleLowerCase("ru-RU");
+        const task = tasks.get(key);
+        if (task) task.durationMs += record.durationMs;
+        else tasks.set(key, { name, durationMs: record.durationMs });
       }
     }
-    return { total, days: [...days.entries()].sort(([a], [b]) => b.localeCompare(a)) };
+    return {
+      total,
+      days: [...days.entries()].sort(([a], [b]) => b.localeCompare(a)),
+      tasks: [...tasks.values()].sort((a, b) => b.durationMs - a.durationMs),
+    };
   }, [serverEntries, reportStart, reportEnd, timezone]);
 
   const run = async (work: () => Promise<unknown>, success?: string): Promise<boolean> => {
@@ -333,6 +343,15 @@ export function TimeTrackerScreen({
               <span className="text-sm font-bold tabular-nums">{formatShort(duration)}</span>
             </div>
           )) : <p className="py-4 text-center text-sm text-muted-2">Нет записей за этот период</p>}
+        </div>
+        <div className="mt-3 border-t border-line pt-4">
+          <h3 className="mb-1 text-sm font-bold">По задачам</h3>
+          {report.tasks.length ? report.tasks.map((task) => (
+            <div key={task.name.toLocaleLowerCase("ru-RU")} className="flex items-center justify-between gap-4 border-b border-line/70 py-3 last:border-0">
+              <span className="min-w-0 truncate text-sm font-medium">{task.name}</span>
+              <span className="shrink-0 text-sm font-bold tabular-nums">{formatShort(task.durationMs)}</span>
+            </div>
+          )) : <p className="py-3 text-sm text-muted-2">Нет записей за этот период</p>}
         </div>
       </section>
 
