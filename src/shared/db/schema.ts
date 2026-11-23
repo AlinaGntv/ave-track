@@ -231,6 +231,33 @@ export const sportMeasurements = sqliteTable(
   (t) => [uniqueIndex("sport_measurements_profile_date_unique").on(t.profileId, t.date)],
 );
 
+/** Потенциальные клиенты и контроль следующего контакта. */
+export const leads = sqliteTable(
+  "leads",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    name: text("name").notNull(),
+    company: text("company"),
+    contact: text("contact"),
+    source: text("source"),
+    stage: text("stage").notNull().default("new"),
+    qualification: text("qualification").notNull().default("unreviewed"),
+    potentialCents: integer("potential_cents"),
+    nextFollowUp: text("next_follow_up"),
+    nextAction: text("next_action"),
+    notes: text("notes"),
+    createdAt: createdAt(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+  },
+  (t) => [
+    index("leads_stage_idx").on(t.stage),
+    index("leads_follow_up_idx").on(t.nextFollowUp),
+    index("leads_created_idx").on(t.createdAt),
+  ],
+);
+
 export const settings = sqliteTable("settings", {
   key: text("key").primaryKey(),
   /** JSON-значение */

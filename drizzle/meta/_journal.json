@@ -71,6 +71,13 @@
       "when": 1795433129440,
       "tag": "0009_hesitant_black_cat",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1795454231704,
+      "tag": "0010_fast_lizard",
+      "breakpoints": true
     }
   ]
 }
