@@ -1,4 +1,4 @@
-import { CalendarCheck, CalendarRange, House, Settings, Timer, Wallet, type LucideIcon } from "lucide-react";
+import { CalendarCheck, CalendarRange, Dumbbell, House, Settings, Timer, Wallet, type LucideIcon } from "lucide-react";
 
 export type NavItem = {
   href: string;
@@ -27,6 +27,7 @@ export const navItems: NavItem[] = [
   { href: "/calendar", label: "Календарь", icon: CalendarRange, tab: true },
   { href: "/money", label: "Деньги", icon: Wallet, tab: true },
   { href: "/time-tracker", label: "Трекер", icon: Timer, tab: true },
+  { href: "/sport", label: "Спорт", icon: Dumbbell, tab: true },
   { href: "/settings", label: "Настройки", icon: Settings },
 ];
 

@@ -3,6 +3,7 @@ import {
   type AnySQLiteColumn,
   index,
   integer,
+  real,
   sqliteTable,
   text,
   uniqueIndex,
@@ -141,6 +142,94 @@ export const timeTrackerSession = sqliteTable("time_tracker_session", {
   name: text("name").notNull(),
   startedAt: integer("started_at", { mode: "timestamp_ms" }).notNull(),
 });
+
+/** Независимые спортивные цели и программы (зал, коньки и другие активности). */
+export const sportProfiles = sqliteTable("sport_profiles", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull(),
+  activity: text("activity").notNull(),
+  heightCm: real("height_cm"),
+  targetWeightKg: real("target_weight_kg"),
+  targetWaistCm: real("target_waist_cm"),
+  targetHipsCm: real("target_hips_cm"),
+  workoutIntervalDays: integer("workout_interval_days").notNull().default(2),
+  createdAt: createdAt(),
+});
+
+export const sportExercises = sqliteTable(
+  "sport_exercises",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    profileId: integer("profile_id").notNull().references(() => sportProfiles.id, { onDelete: "cascade" }),
+    dayLabel: text("day_label").notNull().default("A"),
+    title: text("title").notNull(),
+    sets: integer("sets").notNull().default(3),
+    reps: integer("reps").notNull().default(10),
+    unit: text("unit").notNull().default("повторов"),
+    weightKg: real("weight_kg"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: createdAt(),
+  },
+  (t) => [index("sport_exercises_profile_day_idx").on(t.profileId, t.dayLabel, t.sortOrder)],
+);
+
+export const sportWorkouts = sqliteTable(
+  "sport_workouts",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    profileId: integer("profile_id").notNull().references(() => sportProfiles.id, { onDelete: "cascade" }),
+    date: text("date").notNull(),
+    dayLabel: text("day_label").notNull(),
+    note: text("note"),
+    createdAt: createdAt(),
+  },
+  (t) => [index("sport_workouts_profile_date_idx").on(t.profileId, t.date)],
+);
+
+export const sportWorkoutExercises = sqliteTable(
+  "sport_workout_exercises",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    workoutId: integer("workout_id").notNull().references(() => sportWorkouts.id, { onDelete: "cascade" }),
+    exerciseId: integer("exercise_id").references(() => sportExercises.id, { onDelete: "set null" }),
+    title: text("title").notNull(),
+    targetSets: integer("target_sets").notNull(),
+    targetReps: integer("target_reps").notNull(),
+    targetUnit: text("target_unit").notNull().default("повторов"),
+    targetWeightKg: real("target_weight_kg"),
+    actualReps: integer("actual_reps"),
+    actualWeightKg: real("actual_weight_kg"),
+    completed: integer("completed", { mode: "boolean" }).notNull().default(false),
+  },
+  (t) => [index("sport_workout_exercises_workout_idx").on(t.workoutId)],
+);
+
+export const sportActivityDays = sqliteTable(
+  "sport_activity_days",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    profileId: integer("profile_id").notNull().references(() => sportProfiles.id, { onDelete: "cascade" }),
+    date: text("date").notNull(),
+    note: text("note"),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("sport_activity_day_unique").on(t.profileId, t.date)],
+);
+
+export const sportMeasurements = sqliteTable(
+  "sport_measurements",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    profileId: integer("profile_id").notNull().references(() => sportProfiles.id, { onDelete: "cascade" }),
+    date: text("date").notNull(),
+    weightKg: real("weight_kg"),
+    chestCm: real("chest_cm"),
+    waistCm: real("waist_cm"),
+    hipsCm: real("hips_cm"),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("sport_measurements_profile_date_unique").on(t.profileId, t.date)],
+);
 
 export const settings = sqliteTable("settings", {
   key: text("key").primaryKey(),

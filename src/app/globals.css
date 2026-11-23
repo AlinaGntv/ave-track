@@ -119,6 +119,12 @@
   }
 }
 
+@layer components {
+  .field-input {
+    @apply h-10 w-full rounded-xl bg-bg px-3 text-sm text-fg outline-none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   ::before,
