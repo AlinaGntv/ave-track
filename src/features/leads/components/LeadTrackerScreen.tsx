@@ -1,15 +1,17 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertCircle, ArrowRight, CalendarClock, Check, ChevronRight, CircleDollarSign, Plus, Search, Target, Trash2, UserRound, Users, X } from "lucide-react";
-import { deleteLeadAction, saveLeadAction, updateLeadStageAction } from "../actions";
-import type { Lead, LeadQualification, LeadStage } from "../server";
+import { AlertCircle, ArrowRight, CalendarClock, Check, ChevronRight, CircleDollarSign, Minus, Plus, Search, Target, Trash2, UserRound, Users, X } from "lucide-react";
+import { deleteLeadAction, saveLeadAction, saveLeadOutreachDayAction, updateLeadStageAction } from "../actions";
+import type { Lead, LeadOutreachDay, LeadQualification, LeadStage } from "../server";
 import { ScreenHeader, SectionTitle } from "@/shared/ui/ScreenHeader";
 import { Pressable } from "@/shared/ui/Pressable";
 import { useToast } from "@/shared/ui/Toast";
 
-type View = "overview" | "leads" | "followups";
+type View = "cold" | "warm" | "followups";
+type OutreachCounts = Pick<LeadOutreachDay, "touches" | "replies" | "tests" | "works">;
+type OutreachMetric = keyof OutreachCounts;
 type LeadDraft = {
   name: string;
   company: string;
@@ -31,6 +33,15 @@ const stages: Array<{ id: LeadStage; label: string }> = [
   { id: "won", label: "Клиент" },
   { id: "lost", label: "Закрыт" },
 ];
+
+const outreachMetrics: Array<{ id: OutreachMetric; label: string; short: string }> = [
+  { id: "touches", label: "Касания", short: "касания" },
+  { id: "replies", label: "Ответили", short: "ответы" },
+  { id: "tests", label: "Тестовые", short: "тестовые" },
+  { id: "works", label: "Работы", short: "работы" },
+];
+
+const emptyCounts: OutreachCounts = { touches: 0, replies: 0, tests: 0, works: 0 };
 
 const qualificationLabels: Record<LeadQualification, string> = {
   unreviewed: "Не оценён",
@@ -82,15 +93,34 @@ function stageTone(stage: LeadStage): string {
   return "bg-surface text-muted-2";
 }
 
-export function LeadTrackerScreen({ leads, today, currency }: { leads: Lead[]; today: string; currency: string }) {
+function rate(part: number, total: number): number {
+  return total > 0 ? Math.round((part / total) * 100) : 0;
+}
+
+export function LeadTrackerScreen({ leads, outreachDays, today, currency }: { leads: Lead[]; outreachDays: LeadOutreachDay[]; today: string; currency: string }) {
   const router = useRouter();
   const toast = useToast();
-  const [view, setView] = useState<View>("overview");
+  const [view, setView] = useState<View>("cold");
+  const [period, setPeriod] = useState<"day" | "month">("day");
+  const [selectedDate, setSelectedDate] = useState(today);
+  const [selectedMonth, setSelectedMonth] = useState(today.slice(0, 7));
+  const [dayCounts, setDayCounts] = useState<OutreachCounts>(emptyCounts);
   const [editing, setEditing] = useState<Lead | null | undefined>(undefined);
   const [draft, setDraft] = useState<LeadDraft>(blankDraft());
   const [search, setSearch] = useState("");
   const [stageFilter, setStageFilter] = useState<LeadStage | "all">("all");
   const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    const row = outreachDays.find((item) => item.date === selectedDate);
+    setDayCounts(row ? { touches: row.touches, replies: row.replies, tests: row.tests, works: row.works } : emptyCounts);
+  }, [outreachDays, selectedDate]);
+  const monthCounts = outreachDays.filter((item) => item.date.startsWith(selectedMonth)).reduce<OutreachCounts>((sum, item) => ({
+    touches: sum.touches + item.touches,
+    replies: sum.replies + item.replies,
+    tests: sum.tests + item.tests,
+    works: sum.works + item.works,
+  }), emptyCounts);
+  const shownCounts = period === "day" ? dayCounts : monthCounts;
   const month = today.slice(0, 7);
   const activeLeads = leads.filter((lead) => lead.stage !== "lost");
   const wonLeads = leads.filter((lead) => lead.stage === "won");
@@ -172,26 +202,91 @@ export function LeadTrackerScreen({ leads, today, currency }: { leads: Lead[]; t
     } finally { setBusy(false); }
   };
 
+  const saveOutreach = async (date: string, counts: OutreachCounts, notify = true) => {
+    setBusy(true);
+    try {
+      await saveLeadOutreachDayAction({ date, ...counts });
+      router.refresh();
+      if (notify) toast.show({ message: "Счётчик сохранён" });
+    } catch (error) {
+      console.error(error);
+      toast.show({ message: "Не удалось сохранить статистику" });
+    } finally { setBusy(false); }
+  };
+
+  const changeOutreach = (metric: OutreachMetric, step: number) => {
+    const next = { ...dayCounts, [metric]: Math.max(0, dayCounts[metric] + step) };
+    setDayCounts(next);
+    void saveOutreach(selectedDate, next, false);
+  };
+
   return (
     <>
-      <ScreenHeader caption="Контакты и конверсия" title="Лид-трекер" right={
+      <ScreenHeader caption={view === "cold" ? "Холодный поток · массовая статистика" : "Контакты и конверсия"} title="Лид-трекер" right={view === "cold" ? undefined : (
         <Pressable onClick={beginCreate} className="inline-flex h-10 items-center gap-2 rounded-full bg-ink px-4 text-sm font-semibold text-on-ink">
-          <Plus size={17} /> <span className="hidden sm:inline">Новый лид</span>
+          <Plus size={17} /> <span className="hidden sm:inline">Тёплый лид</span>
         </Pressable>
-      } />
+      )} />
 
       <div className="mx-6 mb-5 flex rounded-2xl bg-surface p-1">
-        {([ ["overview", "Обзор"], ["leads", `Лиды · ${leads.length}`], ["followups", `Фолоу-апы · ${dueFollowUps.length}`] ] as const).map(([key, label]) => (
+        {([ ["cold", "Холодные"], ["warm", `Тёплые · ${leads.length}`], ["followups", `Фолоу-апы · ${dueFollowUps.length}`] ] as const).map(([key, label]) => (
           <button key={key} onClick={() => setView(key)} className={`min-h-10 flex-1 rounded-xl px-2 text-xs font-semibold transition sm:text-sm ${view === key ? "bg-card text-fg shadow-soft" : "text-muted-2"}`}>
             {label}
           </button>
         ))}
       </div>
 
-      {view === "overview" && (
+      {view === "cold" && (
+        <>
+          <div className="mx-6 mb-4 flex items-center justify-between gap-3">
+            <div className="flex rounded-full border border-line p-1">
+              {([ ["day", "День"], ["month", "Месяц"] ] as const).map(([key, label]) => <button key={key} onClick={() => setPeriod(key)} className={`rounded-full px-4 py-1.5 text-xs font-semibold ${period === key ? "bg-ink text-on-ink" : "text-muted-2"}`}>{label}</button>)}
+            </div>
+            {period === "day" ? <input aria-label="Дата статистики" type="date" value={selectedDate} onChange={(event) => setSelectedDate(event.target.value)} className="h-10 max-w-40 rounded-full border border-line bg-bg px-3 text-xs font-semibold" /> : <input aria-label="Месяц статистики" type="month" value={selectedMonth} onChange={(event) => setSelectedMonth(event.target.value)} className="h-10 max-w-40 rounded-full border border-line bg-bg px-3 text-xs font-semibold" />}
+          </div>
+          <section className="mx-6 rounded-3xl border border-line bg-card p-5">
+            <div className="mb-6 flex items-start justify-between gap-3">
+              <div><p className="text-sm text-muted-2">{period === "day" ? (selectedDate === today ? "Сегодня" : formatDay(selectedDate)) : new Intl.DateTimeFormat("ru-RU", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${selectedMonth}-15T12:00:00Z`))}</p><div className="mt-1 flex flex-wrap items-center gap-2"><p className="text-5xl font-bold tabular-nums">{shownCounts.touches}<span className="ml-2 text-base font-medium text-muted-2">касания</span></p>{period === "day" && <CountControl value={dayCounts.touches} disabled={busy} onChange={(value) => setDayCounts({ ...dayCounts, touches: value })} onSave={() => void saveOutreach(selectedDate, dayCounts, false)} onStep={(step) => void changeOutreach("touches", step)} large />}</div></div>
+              <span className="rounded-full bg-surface px-3 py-2 text-xs font-bold text-muted-2">Касание → работа: {rate(shownCounts.works, shownCounts.touches)}%</span>
+            </div>
+            <div className="mb-5 h-3 overflow-hidden rounded-full bg-surface-2"><div className="h-full rounded-full bg-ink transition-all" style={{ width: `${shownCounts.touches ? 100 : 0}%` }} /></div>
+            <div className="space-y-5">
+              {outreachMetrics.slice(1).map((metric, index) => {
+                const count = shownCounts[metric.id];
+                const previous = shownCounts[outreachMetrics[index]?.id ?? "touches"];
+                const percent = rate(count, previous);
+                const overall = rate(count, shownCounts.touches);
+                return <div key={metric.id}>
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <span className="text-sm text-muted-2">{metric.label}</span>
+                    {period === "day" ? <CountControl value={dayCounts[metric.id]} disabled={busy} onChange={(value) => setDayCounts({ ...dayCounts, [metric.id]: value })} onSave={() => void saveOutreach(selectedDate, dayCounts, false)} onStep={(step) => void changeOutreach(metric.id, step)} /> : <span className="text-sm font-bold tabular-nums">{count}</span>}
+                  </div>
+                  <div className="relative h-5 overflow-hidden rounded-full bg-surface-2">
+                    <div className="h-full rounded-full bg-ink/85 transition-all" style={{ width: `${Math.max(0, Math.min(100, overall))}%` }} />
+                    <span className="absolute inset-y-0 right-2 flex items-center rounded-full bg-bg px-2 text-[10px] font-bold">{percent}%</span>
+                  </div>
+                  <p className="mt-1 text-[11px] text-muted-2">{metric.id === "replies" ? `${percent}% от касаний` : metric.id === "tests" ? `${percent}% от ответов · ${overall}% от касаний` : `${percent}% от тестовых · ${overall}% от касаний`}</p>
+                </div>;
+              })}
+            </div>
+            {period === "day" && <div className="mt-5 rounded-2xl bg-surface px-4 py-3 text-xs leading-relaxed text-muted-2">Вводи общее количество за день — по каждому контакту отдельную карточку создавать не нужно. Число сохранится автоматически при потере фокуса или через кнопки.</div>}
+          </section>
+          {period === "month" && <section className="mx-6 mt-3 rounded-3xl border border-line bg-card p-4">
+            <p className="mb-3 text-sm font-bold">Итого за месяц</p>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">{outreachMetrics.map((metric) => <div key={metric.id} className="rounded-2xl bg-surface p-3"><p className="text-2xl font-bold tabular-nums">{monthCounts[metric.id]}</p><p className="text-xs text-muted-2">{metric.label.toLocaleLowerCase("ru-RU")}</p></div>)}</div>
+            <p className="mt-3 text-xs text-muted-2">Ответы от касаний: {rate(monthCounts.replies, monthCounts.touches)}% · Тестовые от ответов: {rate(monthCounts.tests, monthCounts.replies)}% · Работы от тестовых: {rate(monthCounts.works, monthCounts.tests)}%</p>
+          </section>}
+          <div className="mx-6 mt-5 rounded-3xl bg-surface p-4">
+            <p className="text-sm font-bold">Лид заинтересовался?</p><p className="mt-1 text-xs text-muted-2">Перенеси его в тёплые, чтобы вести переписку, квалификацию и фолоу-апы отдельно.</p>
+            <Pressable onClick={() => { setView("warm"); beginCreate(); }} className="mt-3 h-10 rounded-full bg-ink px-4 text-sm font-semibold text-on-ink"><span className="inline-flex items-center gap-2"><Plus size={16} /> Добавить тёплого лида</span></Pressable>
+          </div>
+        </>
+      )}
+
+      {view === "warm" && (
         <>
           <section className="mx-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <StatCard icon={<Users size={18} />} value={String(leads.length)} label="Всего лидов" />
+            <StatCard icon={<Users size={18} />} value={String(activeLeads.length)} label="Тёплых лидов" />
             <StatCard icon={<CalendarClock size={18} />} value={String(leadsThisMonth)} label="Добавлено за месяц" />
             <StatCard icon={<Target size={18} />} value={String(qualifiedLeads.length)} label="Квалифицированы" />
             <StatCard icon={<CircleDollarSign size={18} />} value={`${conversion}%`} label="Конверсия в клиента" strong />
@@ -226,7 +321,7 @@ export function LeadTrackerScreen({ leads, today, currency }: { leads: Lead[]; t
         </>
       )}
 
-      {view === "leads" && (
+      {view === "warm" && (
         <>
           <SectionTitle title="База лидов" right={<span className="text-sm text-muted-2">{visibleLeads.length} из {leads.length}</span>} />
           <div className="mx-6 mb-4 flex flex-col gap-2 sm:flex-row">
@@ -287,6 +382,16 @@ function StatCard({ icon, value, label, strong = false }: { icon: React.ReactNod
   return <div className={`rounded-3xl p-4 ${strong ? "bg-ink text-on-ink" : "border border-line bg-card"}`}>
     <div className={`mb-3 ${strong ? "text-on-ink-muted" : "text-muted-2"}`}>{icon}</div>
     <p className="text-2xl font-bold tabular-nums">{value}</p><p className={`mt-1 text-xs ${strong ? "text-on-ink-muted" : "text-muted-2"}`}>{label}</p>
+  </div>;
+}
+
+function CountControl({ value, disabled, onChange, onSave, onStep, large = false }: {
+  value: number; disabled: boolean; onChange: (value: number) => void; onSave: () => void; onStep: (step: number) => void; large?: boolean;
+}) {
+  return <div className={`flex items-center gap-2 ${large ? "justify-end" : ""}`}>
+    <button disabled={disabled || value === 0} onClick={() => onStep(-1)} aria-label="Уменьшить" className="grid size-8 place-items-center rounded-full border border-line text-muted-2 disabled:opacity-40"><Minus size={14} /></button>
+    <input aria-label="Количество" type="number" min="0" step="1" value={value} disabled={disabled} onChange={(event) => onChange(Math.max(0, Number(event.target.value) || 0))} onBlur={onSave} className={`${large ? "w-24 text-xl" : "w-14 text-base"} h-9 rounded-xl bg-bg text-center font-bold tabular-nums outline-none`} />
+    <button disabled={disabled} onClick={() => onStep(1)} aria-label="Увеличить" className="grid size-8 place-items-center rounded-full border border-line text-fg disabled:opacity-40"><Plus size={14} /></button>
   </div>;
 }
 

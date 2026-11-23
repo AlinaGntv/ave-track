@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { deleteLead, saveLead, updateLeadStage, type LeadStage } from "./server";
+import { deleteLead, saveLead, saveLeadOutreachDay, updateLeadStage, type LeadStage } from "./server";
 
 const id = z.number().int().positive();
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable();
@@ -37,4 +37,17 @@ export async function updateLeadStageAction(leadId: number, stage: LeadStage): P
 export async function deleteLeadAction(leadId: number): Promise<void> {
   deleteLead(id.parse(leadId));
   refresh();
+}
+
+const outreachSchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  touches: z.number().int().min(0).max(1_000_000),
+  replies: z.number().int().min(0).max(1_000_000),
+  tests: z.number().int().min(0).max(1_000_000),
+  works: z.number().int().min(0).max(1_000_000),
+});
+
+export async function saveLeadOutreachDayAction(input: z.input<typeof outreachSchema>): Promise<void> {
+  saveLeadOutreachDay(outreachSchema.parse(input));
+  revalidatePath("/leads");
 }

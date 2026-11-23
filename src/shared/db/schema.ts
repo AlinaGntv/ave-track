@@ -258,6 +258,23 @@ export const leads = sqliteTable(
   ],
 );
 
+/** Сводные дневные показатели по холодным касаниям без карточек на каждый контакт. */
+export const leadOutreachDaily = sqliteTable(
+  "lead_outreach_daily",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    date: text("date").notNull(),
+    touches: integer("touches").notNull().default(0),
+    replies: integer("replies").notNull().default(0),
+    tests: integer("tests").notNull().default(0),
+    works: integer("works").notNull().default(0),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+  },
+  (t) => [uniqueIndex("lead_outreach_daily_date_unique").on(t.date)],
+);
+
 export const settings = sqliteTable("settings", {
   key: text("key").primaryKey(),
   /** JSON-значение */

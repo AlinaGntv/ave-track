@@ -19,6 +19,26 @@ export type Lead = {
   updatedAt: number;
 };
 export type LeadInput = Omit<Lead, "id" | "createdAt" | "updatedAt">;
+export type LeadOutreachDay = { date: string; touches: number; replies: number; tests: number; works: number };
+
+export function getLeadOutreachDays(): LeadOutreachDay[] {
+  return getDb().select({
+    date: schema.leadOutreachDaily.date,
+    touches: schema.leadOutreachDaily.touches,
+    replies: schema.leadOutreachDaily.replies,
+    tests: schema.leadOutreachDaily.tests,
+    works: schema.leadOutreachDaily.works,
+  }).from(schema.leadOutreachDaily).orderBy(desc(schema.leadOutreachDaily.date)).all();
+}
+
+export function saveLeadOutreachDay(input: LeadOutreachDay): void {
+  const table = schema.leadOutreachDaily;
+  getDb().insert(table).values({ ...input, updatedAt: new Date() })
+    .onConflictDoUpdate({
+      target: table.date,
+      set: { touches: input.touches, replies: input.replies, tests: input.tests, works: input.works, updatedAt: new Date() },
+    }).run();
+}
 
 export function getLeads(): Lead[] {
   return getDb().select().from(schema.leads)
