@@ -50,6 +50,7 @@ export function minutesOf(hhmm: string): number {
 }
 
 export function timeOf(minutes: number): string {
+  if (minutes >= DAY_MINUTES) return "24:00";
   const clamped = Math.max(0, Math.min(DAY_MINUTES - 1, minutes));
   return `${String(Math.floor(clamped / 60)).padStart(2, "0")}:${String(clamped % 60).padStart(2, "0")}`;
 }
@@ -134,6 +135,8 @@ export type CalendarItem = {
   projected: boolean;
   /** ID записи истории для завершённого вхождения повтора */
   completionId?: number;
+  /** Явный отрезок расписания для конкретного дня. */
+  segmentId?: number;
 };
 
 export type TimedItem = CalendarItem & {
@@ -181,16 +184,26 @@ export function layoutTimed<T extends { start: number; end: number }>(items: T[]
 
 export type CalendarDay = { date: string; allDay: CalendarItem[]; timed: TimedItem[] };
 
+export type CalendarSegment = { id: number; taskId: number; date: string; startTime: string; durationMinutes: number };
+
 /** Задачи по дням экрана: «весь день» (без времени) и блоки по времени с раскладкой. */
 export function buildCalendar(
   tasks: readonly (TaskItem & { completionId?: number })[],
   days: string[],
+  segments: readonly CalendarSegment[] = [],
 ): CalendarDay[] {
   const from = days[0]!;
   const to = days.at(-1)!;
   const byDay = new Map<string, { allDay: CalendarItem[]; timed: Array<CalendarItem & { start: number; end: number }> }>(
     days.map((d) => [d, { allDay: [], timed: [] }]),
   );
+  const segmentsByOccurrence = new Map<string, CalendarSegment[]>();
+  for (const segment of segments) {
+    const key = `${segment.taskId}:${segment.date}`;
+    const list = segmentsByOccurrence.get(key) ?? [];
+    list.push(segment);
+    segmentsByOccurrence.set(key, list);
+  }
 
   for (const task of tasks) {
     for (const { date, projected } of occurrencesInRange(task, from, to)) {
@@ -203,6 +216,22 @@ export function buildCalendar(
         projected,
         completionId: task.completionId,
       };
+      const overrides = segmentsByOccurrence.get(`${task.id}:${date}`);
+      if (overrides?.length) {
+        for (const segment of overrides) {
+          const start = minutesOf(segment.startTime);
+          const end = Math.min(DAY_MINUTES, start + segment.durationMinutes);
+          day.timed.push({
+            ...item,
+            key: `segment:${segment.id}`,
+            segmentId: segment.id,
+            task: { ...task, dueTime: segment.startTime, durationMinutes: segment.durationMinutes },
+            start,
+            end: Math.max(end, start + 20),
+          });
+        }
+        continue;
+      }
       if (!task.dueTime) {
         day.allDay.push(item);
         continue;

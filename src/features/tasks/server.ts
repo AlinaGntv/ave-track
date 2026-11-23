@@ -152,6 +152,60 @@ export function updateCompletedOccurrence(
     .run();
 }
 
+export type TaskCalendarSegment = { id: number; taskId: number; date: string; startTime: string; durationMinutes: number };
+
+export function getTaskCalendarSegments(from: string, to: string): TaskCalendarSegment[] {
+  return getDb()
+    .select({ id: schema.taskCalendarSegments.id, taskId: schema.taskCalendarSegments.taskId, date: schema.taskCalendarSegments.date, startTime: schema.taskCalendarSegments.startTime, durationMinutes: schema.taskCalendarSegments.durationMinutes })
+    .from(schema.taskCalendarSegments)
+    .where(and(gte(schema.taskCalendarSegments.date, from), lte(schema.taskCalendarSegments.date, to)))
+    .all();
+}
+
+export function splitTaskCalendarBlock(input: {
+  taskId: number;
+  date: string;
+  segmentId: number | null;
+  start: number;
+  end: number;
+  splitAt: number;
+}): void {
+  const segments = schema.taskCalendarSegments;
+  const startTime = (minute: number) => `${String(Math.floor(minute / 60)).padStart(2, "0")}:${String(minute % 60).padStart(2, "0")}`;
+  getDb().transaction((tx) => {
+    if (input.segmentId != null) {
+      const current = tx.select().from(segments).where(and(
+        eq(segments.id, input.segmentId),
+        eq(segments.taskId, input.taskId),
+        eq(segments.date, input.date),
+      )).get();
+      if (!current || current.startTime !== startTime(input.start) || current.durationMinutes !== input.end - input.start) {
+        throw new Error("Расписание изменилось. Обнови календарь и попробуй ещё раз.");
+      }
+      tx.delete(segments).where(eq(segments.id, current.id)).run();
+    } else {
+      const existing = tx.select({ id: segments.id }).from(segments).where(and(
+        eq(segments.taskId, input.taskId),
+        eq(segments.date, input.date),
+      )).get();
+      if (existing) throw new Error("Расписание изменилось. Обнови календарь и попробуй ещё раз.");
+    }
+    tx.insert(segments).values([
+      { taskId: input.taskId, date: input.date, startTime: startTime(input.start), durationMinutes: input.splitAt - input.start },
+      { taskId: input.taskId, date: input.date, startTime: startTime(input.splitAt), durationMinutes: input.end - input.splitAt },
+    ]).run();
+  });
+}
+
+export function updateTaskCalendarSegment(segmentId: number, start: number, durationMinutes: number): void {
+  const startTime = `${String(Math.floor(start / 60)).padStart(2, "0")}:${String(start % 60).padStart(2, "0")}`;
+  getDb()
+    .update(schema.taskCalendarSegments)
+    .set({ startTime, durationMinutes })
+    .where(eq(schema.taskCalendarSegments.id, segmentId))
+    .run();
+}
+
 export function countCompleted(): number {
   return (
     getDb()

@@ -1,13 +1,14 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ChevronLeft, ChevronRight, Repeat } from "lucide-react";
+import { ChevronLeft, ChevronRight, Repeat, Scissors } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent, type PointerEvent } from "react";
 import { useQuickAddHandler, useTaskEditor } from "@/features/tasks/components/TaskEditorProvider";
 import type { ListOption } from "@/features/tasks/components/TaskEditorSheet";
 import { useOptimisticTasks } from "@/features/tasks/hooks";
 import { updateCompletedOccurrenceAction } from "@/features/tasks/actions";
+import { splitTaskCalendarBlockAction, updateTaskCalendarSegmentAction } from "../actions";
 import { DEFAULT_DURATION, draftFromTask, emptyDraft, isDone, PRIORITIES, type TaskItem } from "@/features/tasks/model";
 import { formatDate, nowTimeIn } from "@/shared/lib/dates";
 import { cn } from "@/shared/lib/cn";
@@ -27,6 +28,7 @@ import {
   type CalendarItem,
   type CalendarView,
   type TimedItem,
+  type CalendarSegment,
 } from "../model";
 import { useCalendarDrag, type DragPreview } from "./useCalendarDrag";
 
@@ -58,6 +60,7 @@ export function CalendarScreen({
   view: viewFromUrl,
   today,
   tasks: serverTasks,
+  segments,
   lists,
   inboxId,
   timezone,
@@ -67,6 +70,7 @@ export function CalendarScreen({
   view: CalendarView | null;
   today: string;
   tasks: TaskItem[];
+  segments: CalendarSegment[];
   lists: ListOption[];
   inboxId: number;
   /** Часовой пояс из настроек — для линии «сейчас» */
@@ -80,6 +84,9 @@ export function CalendarScreen({
   const scroller = useRef<HTMLDivElement>(null);
   const grid = useRef<HTMLDivElement>(null);
   const [now, setNow] = useState<number | null>(null);
+  const [splitTarget, setSplitTarget] = useState<TimedItem | null>(null);
+  const [splitAt, setSplitAt] = useState("10:00");
+  const [splitting, setSplitting] = useState(false);
 
   const go = (date: string, nextView: CalendarView) =>
     router.push(`/calendar?date=${date}&view=${nextView}`, { scroll: false });
@@ -107,7 +114,7 @@ export function CalendarScreen({
   }, [anchor, view]);
 
   const days = useMemo(() => visibleDays(anchor, view), [anchor, view]);
-  const calendar = useMemo(() => buildCalendar(tasks, days), [tasks, days]);
+  const calendar = useMemo(() => buildCalendar(tasks, days, segments), [tasks, days, segments]);
 
   // Перетаскивание: новое время (и день) подставляется в задачу сразу, без открытия редактора
   const drag = useCalendarDrag({
@@ -115,8 +122,17 @@ export function CalendarScreen({
     scroller,
     hourHeight: HOUR,
     daysKey: days.join(),
-    onDrop: ({ item, mode, dayIndex, start, end }) => {
+    onDrop: ({ item, dayIndex, start, end }) => {
       const task = item.task;
+      if (item.segmentId != null) {
+        void updateTaskCalendarSegmentAction({ segmentId: item.segmentId, start, durationMinutes: end - start })
+          .then(() => router.refresh())
+          .catch((error) => {
+            console.error(error);
+            toast.show({ message: "Не удалось сохранить отрезок задачи" });
+          });
+        return;
+      }
       if (item.completionId != null) {
         void updateCompletedOccurrenceAction(item.completionId, {
           dueDate: days[dayIndex] ?? item.date,
@@ -173,6 +189,44 @@ export function CalendarScreen({
     if (item.task.id < 0 || item.projected) return;
     if (isDone(item.task)) uncomplete(item.task);
     else complete(item.task);
+  };
+
+  const beginSplit = (item: TimedItem) => {
+    const end = Math.min(24 * 60, item.start + (item.task.durationMinutes ?? DEFAULT_DURATION));
+    const middle = Math.floor((item.start + end) / 2);
+    setSplitAt(timeOf(middle));
+    setSplitTarget(item);
+  };
+
+  const submitSplit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!splitTarget) return;
+    const start = splitTarget.start;
+    const end = Math.min(24 * 60, start + (splitTarget.task.durationMinutes ?? DEFAULT_DURATION));
+    const splitAtMinutes = minutesOf(splitAt);
+    if (splitAtMinutes - start < 5 || end - splitAtMinutes < 5) {
+      toast.show({ message: "Каждая часть должна длиться не менее 5 минут" });
+      return;
+    }
+    setSplitting(true);
+    try {
+      await splitTaskCalendarBlockAction({
+        taskId: splitTarget.task.id,
+        date: splitTarget.date,
+        segmentId: splitTarget.segmentId ?? null,
+        start,
+        end,
+        splitAt: splitAtMinutes,
+      });
+      setSplitTarget(null);
+      router.refresh();
+      toast.show({ message: `Задача разделена только на ${formatDate(splitTarget.date, "d MMMM")}` });
+    } catch (error) {
+      console.error(error);
+      toast.show({ message: error instanceof Error ? error.message : "Не удалось разделить задачу" });
+    } finally {
+      setSplitting(false);
+    }
   };
 
   const onGridClick = (date: string) => (e: MouseEvent<HTMLDivElement>) => {
@@ -299,6 +353,7 @@ export function CalendarScreen({
                   onOpen={() => open(item)}
                   onToggle={() => toggle(item)}
                   onDragStart={(e, mode) => drag.start(e, item, mode)}
+                  onSplit={() => beginSplit(item)}
                 />
               ))}
               {drag.preview?.dayIndex === dayIndex && <DragGhost preview={drag.preview} tone={toneOf(drag.preview.item.task.listId)} />}
@@ -312,6 +367,45 @@ export function CalendarScreen({
           ))}
         </div>
       </div>
+      {splitTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => !splitting && setSplitTarget(null)}>
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="split-task-title"
+            className="w-full max-w-sm rounded-3xl bg-surface p-5 shadow-xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h2 id="split-task-title" className="text-lg font-bold">Разделить задачу</h2>
+            <p className="mt-1 text-sm text-muted-2">{splitTarget.task.title}</p>
+            <p className="mt-2 text-xs text-muted-2">Изменение коснётся только {formatDate(splitTarget.date, "d MMMM")}.</p>
+            <form onSubmit={submitSplit}>
+              <label className="mt-4 flex flex-col gap-1 text-xs font-semibold text-muted-2">
+                Разделить в
+                <input
+                  autoFocus
+                  type="time"
+                  value={splitAt}
+                  onChange={(event) => setSplitAt(event.target.value)}
+                  className="h-11 rounded-xl bg-bg px-3 text-base text-fg"
+                  required
+                />
+              </label>
+              <p className="mt-2 text-xs text-muted-2">
+                Получатся два отрезка: {timeOf(splitTarget.start)}–{splitAt} и {splitAt}–{timeOf(Math.min(24 * 60, splitTarget.start + (splitTarget.task.durationMinutes ?? DEFAULT_DURATION)))}.
+              </p>
+              <div className="mt-5 flex gap-2">
+                <Pressable type="button" disabled={splitting} onClick={() => setSplitTarget(null)} className="h-11 flex-1 rounded-xl bg-bg text-sm font-semibold">
+                  Отмена
+                </Pressable>
+                <Pressable type="submit" disabled={splitting} className="h-11 flex-1 rounded-xl bg-ink text-sm font-bold text-on-ink">
+                  Разделить
+                </Pressable>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
     </div>
   );
 }
@@ -360,6 +454,7 @@ function TimedBlock({
   onOpen,
   onToggle,
   onDragStart,
+  onSplit,
 }: {
   item: TimedItem;
   tone: string;
@@ -367,6 +462,7 @@ function TimedBlock({
   onOpen: () => void;
   onToggle: () => void;
   onDragStart: (e: PointerEvent, mode: "move" | "resize") => void;
+  onSplit: () => void;
 }) {
   const done = isDone(item.task);
   const height = ((item.end - item.start) / 60) * HOUR;
@@ -428,7 +524,7 @@ function TimedBlock({
             />
           </button>
         )}
-        {!item.projected && (
+        {(!item.projected || item.segmentId != null) ? (
           <span
             aria-hidden
             onPointerDown={(e) => {
@@ -439,6 +535,21 @@ function TimedBlock({
           >
             <span className="h-[3px] w-5 rounded-full bg-current opacity-0 transition-opacity group-hover:opacity-50 [@media(hover:none)]:opacity-30" />
           </span>
+        ) : null}
+        {Math.min(24 * 60, item.start + (item.task.durationMinutes ?? DEFAULT_DURATION)) - item.start >= 10 && (
+          <button
+            type="button"
+            aria-label={`Разделить задачу ${item.task.title}`}
+            title="Разделить задачу на этот день"
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation();
+              onSplit();
+            }}
+            className="absolute top-1 right-8 flex h-6 w-6 items-center justify-center rounded-md bg-black/10 opacity-70 hover:opacity-100"
+          >
+            <Scissors size={13} />
+          </button>
         )}
       </div>
     </motion.div>

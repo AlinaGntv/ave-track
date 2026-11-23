@@ -91,7 +91,7 @@ export function useCalendarDrag({
     if (!at) return;
     const next =
       p.mode === "move" ? moveBlock(p.block, at.minutes, p.grab) : resizeBlock(p.block, at.minutes);
-    const dayIndex = p.mode === "move" ? at.dayIndex : active.current.dayIndex;
+    const dayIndex = p.mode === "move" && p.item.segmentId == null ? at.dayIndex : active.current.dayIndex;
     const prev = active.current;
     if (prev.dayIndex === dayIndex && prev.start === next.start && prev.end === next.end) return;
     active.current = { ...prev, dayIndex, ...next };
@@ -141,7 +141,7 @@ export function useCalendarDrag({
 
   const start = useCallback(
     (e: ReactPointerEvent, item: TimedItem, mode: DragMode) => {
-      if (item.projected || item.task.id < 0) return;
+      if ((item.projected && item.segmentId == null) || item.task.id < 0) return;
       if (e.pointerType === "mouse" && e.button !== 0) return;
       if (mode === "move" && (e.target as Element).closest("button")) return; // кружок «выполнить»
       stop();

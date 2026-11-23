@@ -81,6 +81,22 @@ export const taskCompletions = sqliteTable(
   (t) => [index("completions_task_idx").on(t.taskId)],
 );
 
+/** Отдельные временные отрезки задачи для конкретного календарного дня. */
+export const taskCalendarSegments = sqliteTable(
+  "task_calendar_segments",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    taskId: integer("task_id")
+      .notNull()
+      .references(() => tasks.id, { onDelete: "cascade" }),
+    date: text("date").notNull(),
+    startTime: text("start_time").notNull(),
+    durationMinutes: integer("duration_minutes").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("task_calendar_segments_day_idx").on(t.date, t.taskId)],
+);
+
 export const moneyEntries = sqliteTable(
   "money_entries",
   {

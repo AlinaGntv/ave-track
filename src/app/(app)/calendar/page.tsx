@@ -2,7 +2,7 @@ import { CalendarScreen } from "@/features/calendar/components/CalendarScreen";
 import { isCalendarView, visibleDays } from "@/features/calendar/model";
 import { getInboxListId, getLists } from "@/features/lists/server";
 import { getSettings } from "@/features/settings/server";
-import { getCompletedRecurringOccurrences, getCompletedTasks, getOpenTasks } from "@/features/tasks/server";
+import { getCompletedRecurringOccurrences, getCompletedTasks, getOpenTasks, getTaskCalendarSegments } from "@/features/tasks/server";
 import { todayIn } from "@/shared/lib/dates";
 
 export default async function CalendarPage({
@@ -31,6 +31,7 @@ export default async function CalendarPage({
       view={view}
       today={today}
       tasks={tasks}
+      segments={getTaskCalendarSegments(days[0]!, days.at(-1)!)}
       lists={getLists()}
       inboxId={getInboxListId()}
       timezone={timezone}
