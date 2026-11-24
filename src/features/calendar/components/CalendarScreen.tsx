@@ -247,6 +247,12 @@ export function CalendarScreen({
           save(d, item.task);
           return;
         }
+        if (d.dueDate !== item.task.dueDate) {
+          save(d, rootTask, item.segmentId != null && item.task.dueDate
+            ? { segmentId: item.segmentId, fromDate: item.task.dueDate, toDate: d.dueDate }
+            : undefined);
+          return;
+        }
 
         // Сохраняем поля задачи, не меняя базовое расписание повторов/отрезков.
         const base = draftFromTask(rootTask);

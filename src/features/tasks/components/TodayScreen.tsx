@@ -84,6 +84,12 @@ export function TodayScreen({
         save(d, task);
         return;
       }
+      if (d.dueDate !== task.dueDate) {
+        save(d, rootTask, task.calendarSegmentId != null && task.dueDate
+          ? { segmentId: task.calendarSegmentId, fromDate: task.dueDate, toDate: d.dueDate }
+          : undefined);
+        return;
+      }
       const base = draftFromTask(rootTask);
       save({ ...d, dueDate: base.dueDate, dueTime: base.dueTime, durationMinutes: base.durationMinutes }, rootTask);
       const nextDuration = d.durationMinutes ?? DEFAULT_DURATION;

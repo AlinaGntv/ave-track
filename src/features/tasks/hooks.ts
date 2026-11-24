@@ -68,11 +68,11 @@ export function useOptimisticTasks(tasks: TaskItem[], today: string) {
   const keyOf = useCallback((task: TaskItem) => tempKeys.current.get(task.id) ?? task.id, []);
 
   const save = useCallback(
-    (draft: TaskDraft, existing?: TaskItem) => {
+    (draft: TaskDraft, existing?: TaskItem, calendarMove?: { segmentId: number; fromDate: string; toDate: string | null }) => {
       const clean = cleanDraft(draft);
       const task = taskFromDraft(clean, existing);
       run({ type: "upsert", task }, async () => {
-        const id = await saveTaskAction(existing?.id ?? null, clean);
+        const id = await saveTaskAction(existing?.id ?? null, clean, calendarMove);
         if (!existing) tempKeys.current.set(id, task.id);
       });
     },

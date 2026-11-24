@@ -360,7 +360,11 @@ function nextSortOrder(tx: Tx, listId: number): number {
 }
 
 /** Создаёт (id = null) или обновляет задачу вместе с подзадачами в одной транзакции. Возвращает id. */
-export function saveTask(id: number | null, draft: TaskDraft): number {
+export function saveTask(
+  id: number | null,
+  draft: TaskDraft,
+  calendarMove?: { segmentId: number; fromDate: string; toDate: string | null },
+): number {
   return getDb().transaction((tx) => {
     const now = new Date();
     const values = {
@@ -393,6 +397,28 @@ export function saveTask(id: number | null, draft: TaskDraft): number {
         .where(eq(t.id, id))
         .run();
       taskId = id;
+
+      if (calendarMove) {
+        const segment = tx.select().from(schema.taskCalendarSegments)
+          .where(eq(schema.taskCalendarSegments.id, calendarMove.segmentId)).get();
+        if (!segment || segment.taskId !== id || segment.date !== calendarMove.fromDate) {
+          throw new Error("Календарный отрезок изменился. Обнови страницу и попробуй ещё раз.");
+        }
+        const daySegments = and(
+          eq(schema.taskCalendarSegments.taskId, id),
+          eq(schema.taskCalendarSegments.date, calendarMove.fromDate),
+        );
+        if (!calendarMove.toDate || !draft.dueTime) {
+          tx.delete(schema.taskCalendarSegments).where(daySegments).run();
+        } else {
+          tx.update(schema.taskCalendarSegments).set({ date: calendarMove.toDate })
+            .where(daySegments).run();
+          tx.update(schema.taskCalendarSegments).set({
+            startTime: draft.dueTime,
+            durationMinutes: draft.durationMinutes ?? DEFAULT_DURATION,
+          }).where(eq(schema.taskCalendarSegments.id, calendarMove.segmentId)).run();
+        }
+      }
     }
 
     syncSubtasks(tx, taskId, draft, now);

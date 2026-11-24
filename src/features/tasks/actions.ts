@@ -35,9 +35,18 @@ function refresh() {
   revalidatePath("/", "layout");
 }
 
-export async function saveTaskAction(taskId: number | null, draft: TaskDraft): Promise<number> {
+export async function saveTaskAction(
+  taskId: number | null,
+  draft: TaskDraft,
+  calendarMove?: { segmentId: number; fromDate: string; toDate: string | null },
+): Promise<number> {
   const parsed = draftSchema.parse(cleanDraft(draft));
-  const result = saveTask(id.nullable().parse(taskId), parsed);
+  const move = calendarMove == null ? undefined : z.object({
+    segmentId: id,
+    fromDate: date,
+    toDate: date.nullable(),
+  }).parse(calendarMove);
+  const result = saveTask(id.nullable().parse(taskId), parsed, move);
   refresh();
   return result;
 }
