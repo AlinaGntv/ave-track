@@ -4,6 +4,7 @@ import type { Task } from "@/shared/db/schema";
 import { parseRecurrence, serializeRecurrence } from "@/features/recurrence/rule";
 import { parseEarlyJson, serializeEarly } from "./early";
 import {
+  DEFAULT_DURATION,
   applyCompletion,
   completionOutcome,
   type CompletionOutcome,
@@ -204,6 +205,49 @@ export function updateTaskCalendarSegment(segmentId: number, start: number, dura
     .set({ startTime, durationMinutes })
     .where(eq(schema.taskCalendarSegments.id, segmentId))
     .run();
+}
+
+/** Перенос блока календаря и сдвиг цепочки задач — атомарно, только если расписание не изменилось. */
+export function updateCalendarChain(updates: Array<{
+  taskId: number;
+  segmentId: number | null;
+  date: string;
+  expectedStart: number;
+  expectedDurationMinutes: number;
+  start: number;
+  durationMinutes: number;
+}>): void {
+  const segments = schema.taskCalendarSegments;
+  const formatTime = (minute: number) => `${String(Math.floor(minute / 60)).padStart(2, "0")}:${String(minute % 60).padStart(2, "0")}`;
+  getDb().transaction((tx) => {
+    for (const update of updates) {
+      if (update.segmentId != null) {
+        const segment = tx.select().from(segments).where(eq(segments.id, update.segmentId)).get();
+        if (!segment || segment.taskId !== update.taskId || segment.date !== update.date ||
+            segment.startTime !== formatTime(update.expectedStart) || segment.durationMinutes !== update.expectedDurationMinutes) {
+          throw new Error("Расписание изменилось. Обнови календарь и попробуй ещё раз.");
+        }
+        const task = tx.select().from(t).where(eq(t.id, update.taskId)).get();
+        if (!task || task.completedAt || task.recurrence) throw new Error("Эту задачу нельзя сдвинуть вместе с цепочкой.");
+      } else {
+        const task = tx.select().from(t).where(and(eq(t.id, update.taskId), isNull(t.parentId))).get();
+        if (!task || task.completedAt || task.recurrence || task.dueDate !== update.date ||
+            task.dueTime !== formatTime(update.expectedStart) || (task.durationMinutes ?? DEFAULT_DURATION) !== update.expectedDurationMinutes) {
+          throw new Error("Расписание изменилось. Обнови календарь и попробуй ещё раз.");
+        }
+      }
+    }
+
+    for (const update of updates) {
+      if (update.segmentId != null) {
+        tx.update(segments).set({ startTime: formatTime(update.start), durationMinutes: update.durationMinutes })
+          .where(eq(segments.id, update.segmentId)).run();
+      } else {
+        tx.update(t).set({ dueTime: formatTime(update.start), durationMinutes: update.durationMinutes, updatedAt: new Date() })
+          .where(eq(t.id, update.taskId)).run();
+      }
+    }
+  });
 }
 
 export function countCompleted(): number {

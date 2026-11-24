@@ -8,7 +8,7 @@ import { useQuickAddHandler, useTaskEditor } from "@/features/tasks/components/T
 import type { ListOption } from "@/features/tasks/components/TaskEditorSheet";
 import { useOptimisticTasks } from "@/features/tasks/hooks";
 import { updateCompletedOccurrenceAction } from "@/features/tasks/actions";
-import { splitTaskCalendarBlockAction, updateTaskCalendarSegmentAction } from "../actions";
+import { splitTaskCalendarBlockAction, updateCalendarChainAction, updateTaskCalendarSegmentAction } from "../actions";
 import { DEFAULT_DURATION, draftFromTask, emptyDraft, isDone, PRIORITIES, type TaskItem } from "@/features/tasks/model";
 import { formatDate, nowTimeIn } from "@/shared/lib/dates";
 import { cn } from "@/shared/lib/cn";
@@ -36,6 +36,7 @@ import { useCalendarDrag, type DragPreview } from "./useCalendarDrag";
 const HOUR = 56;
 const HOURS = Array.from({ length: 24 }, (_, h) => h);
 const VIEW_KEY = "avetrack-calendar-view";
+const PUSH_CHAIN_KEY = "avetrack-calendar-push-chain";
 
 /** Тон блока по списку: списки различаются оттенками серого (палитра строго ч/б) */
 const TONES = [
@@ -87,6 +88,11 @@ export function CalendarScreen({
   const [splitTarget, setSplitTarget] = useState<TimedItem | null>(null);
   const [splitAt, setSplitAt] = useState("10:00");
   const [splitting, setSplitting] = useState(false);
+  const [pushChain, setPushChain] = useState(false);
+
+  useEffect(() => {
+    try { setPushChain(localStorage.getItem(PUSH_CHAIN_KEY) === "on"); } catch { /* приватный режим */ }
+  }, []);
 
   const go = (date: string, nextView: CalendarView) =>
     router.push(`/calendar?date=${date}&view=${nextView}`, { scroll: false });
@@ -122,8 +128,53 @@ export function CalendarScreen({
     scroller,
     hourHeight: HOUR,
     daysKey: days.join(),
-    onDrop: ({ item, dayIndex, start, end }) => {
+    onDrop: ({ item, dayIndex, start, end, mode }) => {
       const task = item.task;
+      const targetDate = days[dayIndex] ?? item.date;
+      const canPush = pushChain && mode === "move" && targetDate === item.date && start > item.start &&
+        !item.projected && item.completionId == null && !task.completedAt && !task.recurrence;
+      if (canPush) {
+        const dayItems = calendar.find((day) => day.date === item.date)?.timed ?? [];
+        const updates: Array<{
+          taskId: number; segmentId: number | null; date: string; expectedStart: number;
+          expectedDurationMinutes: number; start: number; durationMinutes: number;
+        }> = [];
+        const actualDuration = (entry: TimedItem) => entry.task.durationMinutes ?? DEFAULT_DURATION;
+        const displayDuration = (entry: TimedItem) => Math.max(20, entry.end - entry.start);
+        const addUpdate = (entry: TimedItem, nextStart: number) => updates.push({
+          taskId: entry.task.id,
+          segmentId: entry.segmentId ?? null,
+          date: item.date,
+          expectedStart: entry.start,
+          expectedDurationMinutes: actualDuration(entry),
+          start: nextStart,
+          durationMinutes: actualDuration(entry),
+        });
+        addUpdate(item, start);
+        let occupiedEnd = start + Math.max(20, end - start);
+        const following = dayItems
+          .filter((entry) => entry.key !== item.key && entry.task.id !== task.id && entry.start >= item.start &&
+            !entry.projected && entry.completionId == null && !entry.task.completedAt && !entry.task.recurrence)
+          .sort((a, b) => a.start - b.start || a.end - b.end);
+        for (const entry of following) {
+          if (entry.start >= occupiedEnd) break;
+          const shiftedStart = occupiedEnd;
+          const visibleDuration = displayDuration(entry);
+          if (shiftedStart + visibleDuration > 24 * 60) {
+            toast.show({ message: "Задачи дальше уже не помещаются в этот день — часть цепочки не сдвинута" });
+            return;
+          }
+          addUpdate(entry, shiftedStart);
+          occupiedEnd = shiftedStart + visibleDuration;
+        }
+        void updateCalendarChainAction(updates)
+          .then(() => router.refresh())
+          .catch((error) => {
+            console.error(error);
+            toast.show({ message: error instanceof Error ? error.message : "Не удалось сдвинуть задачи" });
+          });
+        return;
+      }
       if (item.segmentId != null) {
         void updateTaskCalendarSegmentAction({ segmentId: item.segmentId, start, durationMinutes: end - start })
           .then(() => router.refresh())
@@ -135,7 +186,7 @@ export function CalendarScreen({
       }
       if (item.completionId != null) {
         void updateCompletedOccurrenceAction(item.completionId, {
-          dueDate: days[dayIndex] ?? item.date,
+          dueDate: targetDate,
           dueTime: timeOf(start),
           durationMinutes: end - start,
         })
@@ -149,7 +200,7 @@ export function CalendarScreen({
       save(
         {
           ...draftFromTask(task),
-          dueDate: days[dayIndex] ?? item.date,
+          dueDate: targetDate,
           dueTime: timeOf(start),
           // При переносе фиксируем текущую видимую длительность, включая час по умолчанию.
           durationMinutes: end - start,
@@ -271,6 +322,22 @@ export function CalendarScreen({
             ]}
           />
         </div>
+        <button
+          type="button"
+          aria-pressed={pushChain}
+          onClick={() => {
+            const next = !pushChain;
+            setPushChain(next);
+            try { localStorage.setItem(PUSH_CHAIN_KEY, next ? "on" : "off"); } catch { /* приватный режим */ }
+          }}
+          className="mt-2 flex min-h-10 w-full items-center justify-between rounded-2xl bg-surface px-3.5 text-left lg:max-w-sm"
+        >
+          <span className="text-xs font-semibold">Сдвигать следующие задачи</span>
+          <span className={cn("rounded-full px-3 py-1 text-[11px] font-bold", pushChain ? "bg-ink text-on-ink" : "bg-bg text-muted-2")}>
+            {pushChain ? "Включено" : "Выключено"}
+          </span>
+        </button>
+        {pushChain && <p className="mt-1 text-[11px] text-muted-2 lg:max-w-sm">При переносе вперёд пересекающиеся задачи сдвинутся следом.</p>}
       </header>
 
       {/* Дни недели и задачи «на весь день» */}

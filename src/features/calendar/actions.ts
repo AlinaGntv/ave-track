@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { splitTaskCalendarBlock, updateTaskCalendarSegment } from "@/features/tasks/server";
+import { splitTaskCalendarBlock, updateCalendarChain, updateTaskCalendarSegment } from "@/features/tasks/server";
 
 const minute = z.number().int().min(0).max(1440);
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -47,5 +47,31 @@ export async function updateTaskCalendarSegmentAction(input: {
   }).parse(input);
   if (parsed.start + parsed.durationMinutes > 1440) throw new Error("Отрезок не помещается в этот день.");
   updateTaskCalendarSegment(parsed.segmentId, parsed.start, parsed.durationMinutes);
+  revalidatePath("/", "layout");
+}
+
+export async function updateCalendarChainAction(input: Array<{
+  taskId: number;
+  segmentId: number | null;
+  date: string;
+  expectedStart: number;
+  expectedDurationMinutes: number;
+  start: number;
+  durationMinutes: number;
+}>): Promise<void> {
+  const parsed = z.array(z.object({
+    taskId: z.number().int().positive(),
+    segmentId: z.number().int().positive().nullable(),
+    date: day,
+    expectedStart: z.number().int().min(0).max(1439),
+    expectedDurationMinutes: z.number().int().min(5).max(1440),
+    start: z.number().int().min(0).max(1439),
+    durationMinutes: z.number().int().min(5).max(1440),
+  }).refine((row) => row.start + row.durationMinutes <= 1440, "Задача не помещается в этот день."))
+    .min(1).max(100).parse(input);
+  if (new Set(parsed.map((row) => `${row.segmentId ?? "task"}:${row.segmentId ?? row.taskId}`)).size !== parsed.length) {
+    throw new Error("В цепочке повторяется задача.");
+  }
+  updateCalendarChain(parsed);
   revalidatePath("/", "layout");
 }
