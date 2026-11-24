@@ -58,6 +58,7 @@ export async function updateCalendarChainAction(input: Array<{
   expectedDurationMinutes: number;
   start: number;
   durationMinutes: number;
+  instanceOnly: boolean;
 }>): Promise<void> {
   const parsed = z.array(z.object({
     taskId: z.number().int().positive(),
@@ -67,6 +68,7 @@ export async function updateCalendarChainAction(input: Array<{
     expectedDurationMinutes: z.number().int().min(5).max(1440),
     start: z.number().int().min(0).max(1439),
     durationMinutes: z.number().int().min(5).max(1440),
+    instanceOnly: z.boolean(),
   }).refine((row) => row.start + row.durationMinutes <= 1440, "Задача не помещается в этот день."))
     .min(1).max(100).parse(input);
   if (new Set(parsed.map((row) => `${row.segmentId ?? "task"}:${row.segmentId ?? row.taskId}`)).size !== parsed.length) {

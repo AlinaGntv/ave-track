@@ -132,12 +132,12 @@ export function CalendarScreen({
       const task = item.task;
       const targetDate = days[dayIndex] ?? item.date;
       const canPush = pushChain && mode === "move" && targetDate === item.date && start > item.start &&
-        !item.projected && item.completionId == null && !task.completedAt && !task.recurrence;
+        !item.projected && item.completionId == null && !task.completedAt;
       if (canPush) {
         const dayItems = calendar.find((day) => day.date === item.date)?.timed ?? [];
         const updates: Array<{
           taskId: number; segmentId: number | null; date: string; expectedStart: number;
-          expectedDurationMinutes: number; start: number; durationMinutes: number;
+          expectedDurationMinutes: number; start: number; durationMinutes: number; instanceOnly: boolean;
         }> = [];
         const actualDuration = (entry: TimedItem) => entry.task.durationMinutes ?? DEFAULT_DURATION;
         const displayDuration = (entry: TimedItem) => Math.max(20, entry.end - entry.start);
@@ -149,12 +149,13 @@ export function CalendarScreen({
           expectedDurationMinutes: actualDuration(entry),
           start: nextStart,
           durationMinutes: actualDuration(entry),
+          instanceOnly: entry.segmentId == null && entry.task.recurrence != null,
         });
         addUpdate(item, start);
         let occupiedEnd = start + Math.max(20, end - start);
         const following = dayItems
           .filter((entry) => entry.key !== item.key && entry.task.id !== task.id && entry.start >= item.start &&
-            !entry.projected && entry.completionId == null && !entry.task.completedAt && !entry.task.recurrence)
+            !entry.projected && entry.completionId == null && !entry.task.completedAt)
           .sort((a, b) => a.start - b.start || a.end - b.end);
         for (const entry of following) {
           if (entry.start >= occupiedEnd) break;

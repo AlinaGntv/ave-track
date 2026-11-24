@@ -216,6 +216,7 @@ export function updateCalendarChain(updates: Array<{
   expectedDurationMinutes: number;
   start: number;
   durationMinutes: number;
+  instanceOnly: boolean;
 }>): void {
   const segments = schema.taskCalendarSegments;
   const formatTime = (minute: number) => `${String(Math.floor(minute / 60)).padStart(2, "0")}:${String(minute % 60).padStart(2, "0")}`;
@@ -228,10 +229,13 @@ export function updateCalendarChain(updates: Array<{
           throw new Error("Расписание изменилось. Обнови календарь и попробуй ещё раз.");
         }
         const task = tx.select().from(t).where(eq(t.id, update.taskId)).get();
-        if (!task || task.completedAt || task.recurrence) throw new Error("Эту задачу нельзя сдвинуть вместе с цепочкой.");
+        if (!task || task.completedAt) throw new Error("Эту задачу нельзя сдвинуть вместе с цепочкой.");
       } else {
         const task = tx.select().from(t).where(and(eq(t.id, update.taskId), isNull(t.parentId))).get();
-        if (!task || task.completedAt || task.recurrence || task.dueDate !== update.date ||
+        const existingSegment = tx.select({ id: segments.id }).from(segments).where(and(
+          eq(segments.taskId, update.taskId), eq(segments.date, update.date),
+        )).get();
+        if (!task || task.completedAt || (update.instanceOnly ? !task.recurrence : !!task.recurrence) || existingSegment || task.dueDate !== update.date ||
             task.dueTime !== formatTime(update.expectedStart) || (task.durationMinutes ?? DEFAULT_DURATION) !== update.expectedDurationMinutes) {
           throw new Error("Расписание изменилось. Обнови календарь и попробуй ещё раз.");
         }
@@ -242,6 +246,13 @@ export function updateCalendarChain(updates: Array<{
       if (update.segmentId != null) {
         tx.update(segments).set({ startTime: formatTime(update.start), durationMinutes: update.durationMinutes })
           .where(eq(segments.id, update.segmentId)).run();
+      } else if (update.instanceOnly) {
+        tx.insert(segments).values({
+          taskId: update.taskId,
+          date: update.date,
+          startTime: formatTime(update.start),
+          durationMinutes: update.durationMinutes,
+        }).run();
       } else {
         tx.update(t).set({ dueTime: formatTime(update.start), durationMinutes: update.durationMinutes, updatedAt: new Date() })
           .where(eq(t.id, update.taskId)).run();
