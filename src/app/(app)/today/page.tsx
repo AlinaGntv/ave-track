@@ -1,7 +1,7 @@
 import { getInboxListId, getLists } from "@/features/lists/server";
 import { getSettings } from "@/features/settings/server";
 import { TodayScreen } from "@/features/tasks/components/TodayScreen";
-import { getCompletedTasks, getOpenTasks } from "@/features/tasks/server";
+import { getCompletedTasks, getOpenTasks, getTaskCalendarSegments } from "@/features/tasks/server";
 import { shiftDate, todayIn } from "@/shared/lib/dates";
 
 export default function TodayPage() {
@@ -14,5 +14,5 @@ export default function TodayPage() {
     ...getCompletedTasks({ dueFrom: from, dueTo: to }),
   ];
 
-  return <TodayScreen today={today} tasks={tasks} lists={getLists()} inboxId={getInboxListId()} />;
+  return <TodayScreen today={today} tasks={tasks} segments={getTaskCalendarSegments(from, to)} lists={getLists()} inboxId={getInboxListId()} />;
 }

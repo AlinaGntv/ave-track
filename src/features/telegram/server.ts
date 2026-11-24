@@ -2,7 +2,7 @@ import { fromZonedTime } from "date-fns-tz";
 import { and, eq, gte, inArray, isNull, lt } from "drizzle-orm";
 import { getDb, schema } from "@/shared/db/client";
 import { shiftDate } from "@/shared/lib/dates";
-import { getOpenTasks } from "@/features/tasks/server";
+import { applyTaskCalendarSchedule, getOpenTasks } from "@/features/tasks/server";
 import type { TaskItem } from "@/features/tasks/model";
 import type { DigestItem } from "./format";
 import { isReminderDue } from "./schedule";
@@ -41,7 +41,9 @@ export function getDigestItems(
   options: { exact?: boolean; completedSince?: Date } = {},
 ): DigestItem[] {
   const matchesDate = (due: string | null) => due != null && (options.exact ? due === date : due <= date);
-  const open = getOpenTasks().filter((task) => matchesDate(task.dueDate));
+  const open = getOpenTasks()
+    .filter((task) => matchesDate(task.dueDate))
+    .map((task) => task.dueDate === date ? applyTaskCalendarSchedule(task, date) : task);
   const items = open.map((task) => toItem(task, "open"));
   const seen = new Set(items.map((i) => i.id));
 
@@ -84,9 +86,10 @@ export function getDigestItems(
 
 /** Задачи со временем на сегодня, о которых пора напомнить. */
 export function getDueReminders(today: string, now: string): TaskItem[] {
-  return getOpenTasks().filter(
-    (task) => task.dueDate === today && task.dueTime != null && isReminderDue(task.dueTime, now),
-  );
+  return getOpenTasks()
+    .filter((task) => task.dueDate === today)
+    .map((task) => applyTaskCalendarSchedule(task, today))
+    .filter((task) => task.dueTime != null && isReminderDue(task.dueTime, now));
 }
 
 /**

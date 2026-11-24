@@ -11,18 +11,34 @@ import { Pressable } from "@/shared/ui/Pressable";
 import { ScreenHeader } from "@/shared/ui/ScreenHeader";
 import { Waves } from "@/shared/ui/Waves";
 import { useOptimisticTasks } from "../hooks";
-import { compareByDue, emptyDraft, formatDueLabel, isDone, PRIORITIES, type TaskItem } from "../model";
+import { compareByDue, DEFAULT_DURATION, draftFromTask, emptyDraft, formatDueLabel, isDone, PRIORITIES, type TaskItem } from "../model";
 import { useQuickAddHandler, useTaskEditor } from "./TaskEditorProvider";
 import type { ListOption } from "./TaskEditorSheet";
 import { WeekStrip } from "./WeekStrip";
+import { saveTaskCalendarOccurrenceAction } from "@/features/calendar/actions";
+import { useRouter } from "next/navigation";
+import { minutesOf } from "@/features/calendar/model";
+import { useToast } from "@/shared/ui/Toast";
+
+type TodaySegment = { id: number; taskId: number; date: string; startTime: string; durationMinutes: number };
+type TodayItem = TaskItem & { calendarSegmentId?: number };
 
 /** Задачи выбранного дня; для сегодняшнего — плюс невыполненные просроченные. */
-function tasksForDay(tasks: TaskItem[], day: string, today: string): TaskItem[] {
+function tasksForDay(tasks: TaskItem[], day: string, today: string, segments: TodaySegment[]): TodayItem[] {
   return tasks
     .filter((t) => {
       if (!t.dueDate) return false;
       if (t.dueDate === day) return true;
       return day === today && t.dueDate < today && !isDone(t);
+    })
+    .map((task): TodayItem => {
+      if (task.dueDate !== day) return task;
+      const segment = segments
+        .filter((item) => item.taskId === task.id && item.date === day)
+        .sort((a, b) => a.startTime.localeCompare(b.startTime) || a.id - b.id)[0];
+      return segment
+        ? { ...task, dueTime: segment.startTime, durationMinutes: segment.durationMinutes, calendarSegmentId: segment.id }
+        : task;
     })
     .sort(compareByDue);
 }
@@ -35,29 +51,56 @@ function timeLabel(task: TaskItem, day: string): string {
 export function TodayScreen({
   today,
   tasks: serverTasks,
+  segments,
   lists,
   inboxId,
 }: {
   today: string;
   tasks: TaskItem[];
+  segments: TodaySegment[];
   lists: ListOption[];
   inboxId: number;
 }) {
   const [selected, setSelected] = useState(today);
   const { tasks, keyOf, save, remove, complete, uncomplete } = useOptimisticTasks(serverTasks, today);
   const { openEditor } = useTaskEditor();
+  const router = useRouter();
+  const toast = useToast();
   const listNames = new Map(lists.map((l) => [l.id, l.name]));
 
   useQuickAddHandler(() =>
     openEditor({ defaults: { ...emptyDraft(inboxId), dueDate: selected }, onSubmit: (d) => save(d) }),
   );
 
-  const items = tasksForDay(tasks, selected, today);
+  const items = tasksForDay(tasks, selected, today, segments);
   const highlightId = items.find((t) => !isDone(t))?.id;
 
-  const open = (task: TaskItem) => {
+  const open = (task: TodayItem) => {
     if (task.id < 0) return;
-    openEditor({ task, onSubmit: (d) => save(d, task), onDelete: () => remove(task) });
+    openEditor({ task, onSubmit: (d) => {
+      const rootTask = tasks.find((item) => item.id === task.id) ?? task;
+      const occurrenceScoped = task.calendarSegmentId != null || task.recurrence != null;
+      if (!occurrenceScoped) {
+        save(d, task);
+        return;
+      }
+      const base = draftFromTask(rootTask);
+      save({ ...d, dueDate: base.dueDate, dueTime: base.dueTime, durationMinutes: base.durationMinutes }, rootTask);
+      const nextDuration = d.durationMinutes ?? DEFAULT_DURATION;
+      const currentDuration = task.durationMinutes ?? DEFAULT_DURATION;
+      if (d.dueTime && (d.dueTime !== task.dueTime || nextDuration !== currentDuration)) {
+        void saveTaskCalendarOccurrenceAction({
+          taskId: task.id,
+          segmentId: task.calendarSegmentId ?? null,
+          date: selected,
+          start: minutesOf(d.dueTime),
+          durationMinutes: nextDuration,
+        }).then(() => router.refresh()).catch((error) => {
+          console.error(error);
+          toast.show({ message: error instanceof Error ? error.message : "Не удалось сохранить время задачи" });
+        });
+      }
+    }, onDelete: () => remove(task) });
   };
   const toggle = (task: TaskItem) => {
     if (task.id < 0) return;

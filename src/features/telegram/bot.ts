@@ -5,7 +5,7 @@ import { getInboxListId, getLists } from "@/features/lists/server";
 import { getEntries, getGoals } from "@/features/money/server";
 import { getSettings, setSetting } from "@/features/settings/server";
 import { emptyDraft, type TaskItem } from "@/features/tasks/model";
-import { completeTask, getOpenTasks, saveTask } from "@/features/tasks/server";
+import { applyTaskCalendarSchedule, completeTask, getOpenTasks, saveTask } from "@/features/tasks/server";
 import { getDb, schema } from "@/shared/db/client";
 import { shiftDate, todayIn } from "@/shared/lib/dates";
 import { telegramClientOptions, type TelegramConfig } from "./config";
@@ -125,8 +125,9 @@ export async function sendReport(api: Api, config: TelegramConfig, today: string
 export async function sendReminder(api: Api, config: TelegramConfig, taskId: number) {
   const task = getOpenTasks().find((t) => t.id === taskId);
   if (!task) return;
+  const scheduled = task.dueDate ? applyTaskCalendarSchedule(task, task.dueDate) : task;
   await withEmoji((emoji) => {
-    const msg = buildReminder(task, emoji);
+    const msg = buildReminder(scheduled, emoji);
     return api.sendMessage(config.chatId, msg.text, markup(msg));
   });
 }

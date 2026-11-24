@@ -163,6 +163,20 @@ export function getTaskCalendarSegments(from: string, to: string): TaskCalendarS
     .all();
 }
 
+/** Календарное расписание экземпляра, если оно переопределено на конкретный день. */
+export function applyTaskCalendarSchedule(task: TaskItem, date: string): TaskItem {
+  const segment = getDb()
+    .select({ startTime: schema.taskCalendarSegments.startTime, durationMinutes: schema.taskCalendarSegments.durationMinutes })
+    .from(schema.taskCalendarSegments)
+    .where(and(
+      eq(schema.taskCalendarSegments.taskId, task.id),
+      eq(schema.taskCalendarSegments.date, date),
+    ))
+    .orderBy(asc(schema.taskCalendarSegments.startTime), asc(schema.taskCalendarSegments.id))
+    .get();
+  return segment ? { ...task, dueTime: segment.startTime, durationMinutes: segment.durationMinutes } : task;
+}
+
 export function splitTaskCalendarBlock(input: {
   taskId: number;
   date: string;
@@ -402,13 +416,20 @@ export function completeTask(id: number, today: string): CompletionOutcome {
     const now = Date.now();
     const outcome = completionOutcome(task!, today);
     const next = applyCompletion(task!, outcome, now);
+    const calendarOverride = row.dueDate
+      ? tx.select({ startTime: schema.taskCalendarSegments.startTime, durationMinutes: schema.taskCalendarSegments.durationMinutes })
+          .from(schema.taskCalendarSegments)
+          .where(and(eq(schema.taskCalendarSegments.taskId, id), eq(schema.taskCalendarSegments.date, row.dueDate)))
+          .orderBy(asc(schema.taskCalendarSegments.startTime), asc(schema.taskCalendarSegments.id))
+          .get()
+      : undefined;
 
     tx.insert(c)
       .values({
         taskId: id,
         dueDate: row.dueDate,
-        dueTime: row.dueTime,
-        durationMinutes: row.durationMinutes,
+        dueTime: calendarOverride?.startTime ?? row.dueTime,
+        durationMinutes: calendarOverride?.durationMinutes ?? row.durationMinutes,
         completedAt: new Date(now),
       })
       .run();
