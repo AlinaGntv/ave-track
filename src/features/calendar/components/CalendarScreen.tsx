@@ -8,7 +8,7 @@ import { useQuickAddHandler, useTaskEditor } from "@/features/tasks/components/T
 import type { ListOption } from "@/features/tasks/components/TaskEditorSheet";
 import { useOptimisticTasks } from "@/features/tasks/hooks";
 import { updateCompletedOccurrenceAction } from "@/features/tasks/actions";
-import { saveTaskCalendarOccurrenceAction, splitTaskCalendarBlockAction, updateCalendarChainAction, updateTaskCalendarSegmentAction } from "../actions";
+import { moveTaskCalendarOccurrenceAction, saveTaskCalendarOccurrenceAction, splitTaskCalendarBlockAction, updateCalendarChainAction, updateTaskCalendarSegmentAction } from "../actions";
 import { DEFAULT_DURATION, draftFromTask, emptyDraft, isDone, PRIORITIES, type TaskItem } from "@/features/tasks/model";
 import { formatDate, nowTimeIn } from "@/shared/lib/dates";
 import { cn } from "@/shared/lib/cn";
@@ -177,11 +177,14 @@ export function CalendarScreen({
         return;
       }
       if (item.segmentId != null) {
-        void updateTaskCalendarSegmentAction({ segmentId: item.segmentId, start, durationMinutes: end - start })
+        const action = targetDate === item.date
+          ? updateTaskCalendarSegmentAction({ segmentId: item.segmentId, start, durationMinutes: end - start })
+          : moveTaskCalendarOccurrenceAction({ segmentId: item.segmentId, targetDate, start, durationMinutes: end - start });
+        void action
           .then(() => router.refresh())
           .catch((error) => {
             console.error(error);
-            toast.show({ message: "Не удалось сохранить отрезок задачи" });
+            toast.show({ message: error instanceof Error ? error.message : "Не удалось сохранить отрезок задачи" });
           });
         return;
       }
