@@ -467,7 +467,7 @@ export function SportScreen({ data, today }: { data: SportData; today: string })
               })}
             </div>
             <Field label="Заметка"><input value={workoutNote} onChange={(event) => setWorkoutNote(event.target.value)} placeholder="Самочувствие, комментарий" className="field-input" /></Field>
-            <label className="mt-3 flex items-start gap-2 rounded-xl bg-bg p-3 text-xs"><input type="checkbox" checked={applyActual} onChange={(event) => setApplyActual(event.target.checked)} className="mt-0.5 accent-black" /><span><b>Сохранить факт как цель программы</b><span className="mt-0.5 block text-muted-2">Для выполненных упражнений следующий раз будет предложен этот результат.</span></span></label>
+            <label className="mt-3 flex items-start gap-2 rounded-xl bg-bg p-3 text-xs"><input type="checkbox" checked={applyActual} onChange={(event) => setApplyActual(event.target.checked)} className="mt-0.5" /><span><b>Сохранить факт как цель программы</b><span className="mt-0.5 block text-muted-2">Для выполненных упражнений следующий раз будет предложен этот результат.</span></span></label>
             <Pressable disabled={busy} type="submit" className="mt-4 h-12 w-full rounded-xl bg-ink text-sm font-bold text-on-ink">Сохранить тренировку</Pressable>
           </form>
         </Overlay>

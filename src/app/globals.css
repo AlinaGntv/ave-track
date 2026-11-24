@@ -34,9 +34,9 @@
   --card: #18181a;
   --surface-2: #232326;
   --fg: #f3f3f4;
-  --muted: #6f6f76;
-  --muted-2: #9c9ca3;
-  --line: #242427;
+  --muted: #85858d;
+  --muted-2: #b1b1b7;
+  --line: #303034;
   --ink: #f1f1f2;
   --on-ink: #141415;
   --on-ink-muted: rgba(20, 20, 21, 0.65);
@@ -95,6 +95,46 @@
   textarea,
   select {
     font-size: 16px;
+    color: var(--fg);
+    caret-color: var(--fg);
+  }
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--muted);
+    opacity: 1;
+  }
+  /* Native dropdowns and date/time pickers must follow AveTrack's active theme. */
+  select,
+  input[type="date"],
+  input[type="time"],
+  input[type="month"] {
+    color-scheme: light;
+  }
+  .dark select,
+  .dark input[type="date"],
+  .dark input[type="time"],
+  .dark input[type="month"] {
+    color-scheme: dark;
+  }
+  option {
+    color: var(--fg);
+    background-color: var(--card);
+  }
+  input[type="checkbox"],
+  input[type="radio"] {
+    accent-color: var(--ink);
+  }
+  input:disabled,
+  textarea:disabled,
+  select:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+  input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):focus-visible,
+  textarea:focus-visible,
+  select:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--fg) 42%, transparent);
+    outline-offset: 2px;
   }
   button {
     cursor: pointer;
@@ -121,7 +161,15 @@
 
 @layer components {
   .field-input {
-    @apply h-10 w-full rounded-xl bg-bg px-3 text-sm text-fg outline-none;
+    @apply h-11 w-full rounded-xl border border-line bg-card px-3 text-sm text-fg outline-none transition-colors;
+  }
+  .field-input:focus-visible {
+    border-color: var(--muted-2);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--fg) 10%, transparent);
+  }
+  .field-input:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
   }
 }
 
