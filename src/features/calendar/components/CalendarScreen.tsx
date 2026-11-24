@@ -8,7 +8,7 @@ import { useQuickAddHandler, useTaskEditor } from "@/features/tasks/components/T
 import type { ListOption } from "@/features/tasks/components/TaskEditorSheet";
 import { useOptimisticTasks } from "@/features/tasks/hooks";
 import { updateCompletedOccurrenceAction } from "@/features/tasks/actions";
-import { splitTaskCalendarBlockAction, updateCalendarChainAction, updateTaskCalendarSegmentAction } from "../actions";
+import { saveTaskCalendarOccurrenceAction, splitTaskCalendarBlockAction, updateCalendarChainAction, updateTaskCalendarSegmentAction } from "../actions";
 import { DEFAULT_DURATION, draftFromTask, emptyDraft, isDone, PRIORITIES, type TaskItem } from "@/features/tasks/model";
 import { formatDate, nowTimeIn } from "@/shared/lib/dates";
 import { cn } from "@/shared/lib/cn";
@@ -235,7 +235,39 @@ export function CalendarScreen({
 
   const open = (item: CalendarItem) => {
     if (item.task.id < 0 || drag.consumeClick()) return;
-    openEditor({ task: item.task, onSubmit: (d) => save(d, item.task), onDelete: () => remove(item.task) });
+    openEditor({
+      task: item.task,
+      onSubmit: (d) => {
+        const rootTask = tasks.find((task) => task.id === item.task.id) ?? item.task;
+        const occurrenceScoped = item.segmentId != null || item.task.recurrence != null;
+        if (!occurrenceScoped) {
+          save(d, item.task);
+          return;
+        }
+
+        // Сохраняем поля задачи, не меняя базовое расписание повторов/отрезков.
+        const base = draftFromTask(rootTask);
+        save({ ...d, dueDate: base.dueDate, dueTime: base.dueTime, durationMinutes: base.durationMinutes }, rootTask);
+
+        const nextDuration = d.durationMinutes ?? DEFAULT_DURATION;
+        const currentDuration = item.task.durationMinutes ?? DEFAULT_DURATION;
+        if (d.dueTime && (d.dueTime !== item.task.dueTime || nextDuration !== currentDuration)) {
+          void saveTaskCalendarOccurrenceAction({
+            taskId: item.task.id,
+            segmentId: item.segmentId ?? null,
+            date: item.date,
+            start: minutesOf(d.dueTime),
+            durationMinutes: nextDuration,
+          })
+            .then(() => router.refresh())
+            .catch((error) => {
+              console.error(error);
+              toast.show({ message: error instanceof Error ? error.message : "Не удалось сохранить время задачи" });
+            });
+        }
+      },
+      onDelete: () => remove(item.task),
+    });
   };
   const toggle = (item: CalendarItem) => {
     if (item.task.id < 0 || item.projected) return;

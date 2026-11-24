@@ -207,6 +207,43 @@ export function updateTaskCalendarSegment(segmentId: number, start: number, dura
     .run();
 }
 
+/** Сохраняет время одного экземпляра задачи в календаре, не меняя расписание серии. */
+export function saveTaskCalendarOccurrence(input: {
+  taskId: number;
+  segmentId: number | null;
+  date: string;
+  start: number;
+  durationMinutes: number;
+}): void {
+  const segments = schema.taskCalendarSegments;
+  const startTime = `${String(Math.floor(input.start / 60)).padStart(2, "0")}:${String(input.start % 60).padStart(2, "0")}`;
+  getDb().transaction((tx) => {
+    const task = tx.select().from(t).where(and(eq(t.id, input.taskId), isNull(t.parentId))).get();
+    if (!task || task.completedAt) throw new Error("Задача больше недоступна для изменения.");
+
+    if (input.segmentId != null) {
+      const segment = tx.select().from(segments).where(eq(segments.id, input.segmentId)).get();
+      if (!segment || segment.taskId !== input.taskId || segment.date !== input.date) {
+        throw new Error("Отрезок изменился. Обнови календарь и попробуй ещё раз.");
+      }
+      tx.update(segments).set({ startTime, durationMinutes: input.durationMinutes })
+        .where(eq(segments.id, input.segmentId)).run();
+      return;
+    }
+
+    const existing = tx.select({ id: segments.id }).from(segments).where(and(
+      eq(segments.taskId, input.taskId), eq(segments.date, input.date),
+    )).get();
+    if (existing) throw new Error("Расписание изменилось. Обнови календарь и попробуй ещё раз.");
+    tx.insert(segments).values({
+      taskId: input.taskId,
+      date: input.date,
+      startTime,
+      durationMinutes: input.durationMinutes,
+    }).run();
+  });
+}
+
 /** Перенос блока календаря и сдвиг цепочки задач — атомарно, только если расписание не изменилось. */
 export function updateCalendarChain(updates: Array<{
   taskId: number;

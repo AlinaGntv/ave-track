@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { splitTaskCalendarBlock, updateCalendarChain, updateTaskCalendarSegment } from "@/features/tasks/server";
+import { saveTaskCalendarOccurrence, splitTaskCalendarBlock, updateCalendarChain, updateTaskCalendarSegment } from "@/features/tasks/server";
 
 const minute = z.number().int().min(0).max(1440);
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -47,6 +47,24 @@ export async function updateTaskCalendarSegmentAction(input: {
   }).parse(input);
   if (parsed.start + parsed.durationMinutes > 1440) throw new Error("Отрезок не помещается в этот день.");
   updateTaskCalendarSegment(parsed.segmentId, parsed.start, parsed.durationMinutes);
+  revalidatePath("/", "layout");
+}
+
+export async function saveTaskCalendarOccurrenceAction(input: {
+  taskId: number;
+  segmentId: number | null;
+  date: string;
+  start: number;
+  durationMinutes: number;
+}): Promise<void> {
+  const parsed = z.object({
+    taskId: z.number().int().positive(),
+    segmentId: z.number().int().positive().nullable(),
+    date: day,
+    start: minute,
+    durationMinutes: z.number().int().min(5).max(1440),
+  }).refine((row) => row.start + row.durationMinutes <= 1440, "Задача не помещается в этот день.").parse(input);
+  saveTaskCalendarOccurrence(parsed);
   revalidatePath("/", "layout");
 }
 
