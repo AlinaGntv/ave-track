@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, Check, ChevronDown, Dumbbell, Footprints, Flame, Pencil, Plus, Ruler, Target, Trash2, Weight, X } from "lucide-react";
+import { Activity, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Check, ChevronDown, Dumbbell, Footprints, Flame, Pencil, Plus, Ruler, Target, Trash2, Weight, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { formatDate } from "@/shared/lib/dates";
@@ -9,23 +9,29 @@ import { ScreenHeader, SectionTitle } from "@/shared/ui/ScreenHeader";
 import { useToast } from "@/shared/ui/Toast";
 import {
   createSportProfileAction,
+  createSportFoodEntryAction,
   createSportWorkoutAction,
   deleteSportExerciseAction,
+  deleteSportFoodEntryAction,
   deleteSportProfileAction,
   markSportActivityAction,
   saveSportExerciseAction,
   saveSportMeasurementAction,
+  saveSportNutritionGoalAction,
+  reorderSportExercisesAction,
   updateSportProfileAction,
 } from "../actions";
-import type { SportActivity, SportExercise, SportExerciseUnit, SportMeasurement, SportProfile, SportWorkout } from "../server";
+import type { SportActivity, SportExercise, SportExerciseUnit, SportFoodEntry, SportMeasurement, SportNutritionGoal, SportProfile, SportWorkout } from "../server";
 
-type Tab = "Обзор" | "Программа" | "Мои данные";
+type Tab = "Обзор" | "Программа" | "Питание" | "Мои данные";
 type SportData = {
   profiles: SportProfile[];
   exercises: SportExercise[];
   workouts: SportWorkout[];
   measurements: SportMeasurement[];
   activities: SportActivity[];
+  nutritionGoals: SportNutritionGoal[];
+  foodEntries: SportFoodEntry[];
 };
 
 function shiftDay(date: string, amount: number): string {
@@ -96,12 +102,25 @@ export function SportScreen({ data, today }: { data: SportData; today: string })
   const [profileInterval, setProfileInterval] = useState("2");
   const [profileActivityEdit, setProfileActivityEdit] = useState("");
   const [profileNameEdit, setProfileNameEdit] = useState("");
+  const [nutritionDate, setNutritionDate] = useState(today);
+  const [foodName, setFoodName] = useState("");
+  const [foodCalories, setFoodCalories] = useState("");
+  const [foodProtein, setFoodProtein] = useState("");
+  const [foodCarbs, setFoodCarbs] = useState("");
+  const [foodFat, setFoodFat] = useState("");
+  const nutritionGoal = data.nutritionGoals.find((item) => item.profileId === profile?.id);
+  const [goalCalories, setGoalCalories] = useState("");
+  const [goalProtein, setGoalProtein] = useState("");
+  const [goalCarbs, setGoalCarbs] = useState("");
+  const [goalFat, setGoalFat] = useState("");
 
   const profile = data.profiles.find((item) => item.id === profileId) ?? data.profiles[0] ?? null;
   const profileExercises = useMemo(() => data.exercises.filter((item) => item.profileId === profile?.id), [data.exercises, profile?.id]);
   const dayOptions = useMemo(() => [...new Set(profileExercises.map((item) => item.dayLabel))].sort((a, b) => a.localeCompare(b, "ru", { numeric: true })), [profileExercises]);
   const selectedDay = dayOptions.includes(dayLabel) ? dayLabel : dayOptions[0] ?? dayLabel;
-  const plan = profileExercises.filter((item) => item.dayLabel === selectedDay);
+  const plan = profileExercises.filter((item) => item.dayLabel === selectedDay).sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id);
+  const dayFoodEntries = data.foodEntries.filter((item) => item.profileId === profile?.id && item.date === nutritionDate);
+  const consumed = dayFoodEntries.reduce((sum, item) => ({ calories: sum.calories + item.calories, protein: sum.protein + item.protein, carbs: sum.carbs + item.carbs, fat: sum.fat + item.fat }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
   const workouts = data.workouts.filter((item) => item.profileId === profile?.id);
   const measurements = data.measurements.filter((item) => item.profileId === profile?.id);
   const activities = data.activities.filter((item) => item.profileId === profile?.id);
@@ -131,11 +150,15 @@ export function SportScreen({ data, today }: { data: SportData; today: string })
     setProfileTargetWaist(profile?.targetWaistCm?.toString() ?? "");
     setProfileTargetHips(profile?.targetHipsCm?.toString() ?? "");
     setProfileInterval(profile?.workoutIntervalDays.toString() ?? "2");
+    setGoalCalories(nutritionGoal?.calories?.toString() ?? "");
+    setGoalProtein(nutritionGoal?.protein?.toString() ?? "");
+    setGoalCarbs(nutritionGoal?.carbs?.toString() ?? "");
+    setGoalFat(nutritionGoal?.fat?.toString() ?? "");
     setWeightValue(latest?.weightKg?.toString() ?? "");
     setChestValue(latest?.chestCm?.toString() ?? "");
     setWaistValue(latest?.waistCm?.toString() ?? "");
     setHipsValue(latest?.hipsCm?.toString() ?? "");
-  }, [profile?.id, latest?.id]);
+  }, [profile?.id, latest?.id, nutritionGoal?.calories, nutritionGoal?.protein, nutritionGoal?.carbs, nutritionGoal?.fat]);
 
   const run = async (work: () => Promise<unknown>, success?: string) => {
     setBusy(true);
@@ -263,6 +286,37 @@ export function SportScreen({ data, today }: { data: SportData; today: string })
     }), "Замеры за сегодня сохранены");
   };
 
+  const saveNutritionGoals = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!profile) return;
+    void run(() => saveSportNutritionGoalAction({
+      profileId: profile.id,
+      calories: numberOrNull(goalCalories) == null ? null : Math.round(Number(goalCalories)),
+      protein: numberOrNull(goalProtein), carbs: numberOrNull(goalCarbs), fat: numberOrNull(goalFat),
+    }), "Цели КБЖУ сохранены");
+  };
+
+  const addFoodEntry = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!profile || !foodName.trim()) return;
+    void run(() => createSportFoodEntryAction({
+      profileId: profile.id, date: nutritionDate, name: foodName.trim(),
+      calories: Math.round(Number(foodCalories) || 0), protein: Number(foodProtein) || 0,
+      carbs: Number(foodCarbs) || 0, fat: Number(foodFat) || 0,
+    }), "Запись питания добавлена").then((ok) => {
+      if (ok) { setFoodName(""); setFoodCalories(""); setFoodProtein(""); setFoodCarbs(""); setFoodFat(""); }
+    });
+  };
+
+  const moveExercise = (index: number, offset: number) => {
+    if (!profile) return;
+    const ids = plan.map((exercise) => exercise.id);
+    const target = index + offset;
+    if (target < 0 || target >= ids.length) return;
+    [ids[index], ids[target]] = [ids[target]!, ids[index]!];
+    void run(() => reorderSportExercisesAction(profile.id, selectedDay, ids), "Порядок обновлён");
+  };
+
   const markActivity = () => {
     if (!profile || todayActivity) return;
     void run(() => markSportActivityAction(profile.id, today, "Самостоятельная активность"), "День отмечен как активный");
@@ -325,9 +379,9 @@ export function SportScreen({ data, today }: { data: SportData; today: string })
           </section>
         ) : (
           <>
-            <div className="grid grid-cols-3 gap-2 rounded-2xl bg-surface p-1">
-              {(["Обзор", "Программа", "Мои данные"] as Tab[]).map((value) => (
-                <button key={value} onClick={() => setTab(value)} className={`h-10 rounded-xl px-2 text-xs font-semibold transition-colors ${tab === value ? "bg-ink text-on-ink" : "text-muted-2"}`}>{value}</button>
+            <div className="grid grid-cols-4 gap-1 rounded-2xl bg-surface p-1">
+              {(["Обзор", "Программа", "Питание", "Мои данные"] as Tab[]).map((value) => (
+                <button key={value} onClick={() => setTab(value)} className={`h-10 rounded-xl px-1 text-[11px] font-semibold transition-colors ${tab === value ? "bg-ink text-on-ink" : "text-muted-2"}`}>{value}</button>
               ))}
             </div>
 
@@ -376,10 +430,11 @@ export function SportScreen({ data, today }: { data: SportData; today: string })
                   <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
                     {dayOptions.map((day) => <button key={day} onClick={() => setDayLabel(day)} className={`h-9 min-w-10 rounded-full px-3 text-sm font-bold ${day === selectedDay ? "bg-ink text-on-ink" : "bg-bg text-muted-2"}`}>{day}</button>)}
                   </div>
-                  {plan.length ? <div className="mt-3 divide-y divide-line/70">{plan.map((exercise) => (
-                    <div key={exercise.id} className="flex items-center gap-3 py-3">
+                  {plan.length ? <div className="mt-3 divide-y divide-line/70">{plan.map((exercise, index) => (
+                    <div key={exercise.id} className="flex items-center gap-2 py-3">
                       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-bg text-xs font-bold">{exercise.sets}×</span>
                       <div className="min-w-0 flex-1"><p className="truncate text-sm font-bold">{exercise.title}</p><p className="mt-0.5 text-xs text-muted-2">{exercise.sets} подхода · {exercise.reps} {exercise.unit}{exercise.weightKg != null ? ` · ${exercise.weightKg} кг` : ""}</p></div>
+                      <div className="flex flex-col"><button disabled={index === 0 || busy} onClick={() => moveExercise(index, -1)} aria-label="Переместить выше" className="flex h-5 w-7 items-center justify-center text-muted-2 disabled:opacity-20"><ArrowUp size={13} /></button><button disabled={index === plan.length - 1 || busy} onClick={() => moveExercise(index, 1)} aria-label="Переместить ниже" className="flex h-5 w-7 items-center justify-center text-muted-2 disabled:opacity-20"><ArrowDown size={13} /></button></div>
                       <button onClick={() => openExerciseEditor(exercise)} aria-label="Изменить упражнение" className="flex h-9 w-9 items-center justify-center rounded-full text-muted-2"><Pencil size={15} /></button>
                       <button onClick={() => void run(() => deleteSportExerciseAction(exercise.id), "Упражнение удалено")} aria-label="Удалить упражнение" className="flex h-9 w-9 items-center justify-center rounded-full text-muted-2"><Trash2 size={15} /></button>
                     </div>
@@ -388,6 +443,25 @@ export function SportScreen({ data, today }: { data: SportData; today: string })
                 </section>
                 <section className="rounded-[24px] bg-surface p-4">
                   <div className="flex gap-3"><Target size={18} className="mt-0.5 shrink-0" /><p className="text-sm text-muted-2">Цели программы всегда можно изменить. В тренировке укажи фактический результат и включи «Сохранить как цель» — следующее занятие предложит именно его.</p></div>
+                </section>
+              </>
+            )}
+
+            {tab === "Питание" && (
+              <>
+                <section className="rounded-[28px] bg-surface p-4">
+                  <div className="flex items-center justify-between gap-2"><div><p className="text-xs font-semibold text-muted-2">ДНЕВНИК ПИТАНИЯ</p><h2 className="mt-1 text-xl font-bold">КБЖУ за день</h2></div><div className="flex items-center gap-1"><button aria-label="Предыдущий день" onClick={() => setNutritionDate((date) => shiftDay(date, -1))} className="flex h-9 w-9 items-center justify-center rounded-full bg-bg"><ArrowLeft size={16} /></button><input aria-label="Дата дневника" type="date" value={nutritionDate} onChange={(event) => setNutritionDate(event.target.value)} className="h-9 w-[135px] rounded-xl bg-bg px-2 text-xs" /><button aria-label="Следующий день" onClick={() => setNutritionDate((date) => shiftDay(date, 1))} className="flex h-9 w-9 items-center justify-center rounded-full bg-bg"><ArrowRight size={16} /></button></div></div>
+                  <div className="mt-4 grid grid-cols-2 gap-2">{([
+                    ["Ккал", consumed.calories, nutritionGoal?.calories, "goalCalories"],
+                    ["Белки", consumed.protein, nutritionGoal?.protein, "goalProtein"],
+                    ["Жиры", consumed.fat, nutritionGoal?.fat, "goalFat"],
+                    ["Углеводы", consumed.carbs, nutritionGoal?.carbs, "goalCarbs"],
+                  ] as const).map(([label, value, target]) => <div key={label} className="rounded-2xl bg-bg p-3"><div className="flex items-baseline justify-between gap-1"><span className="text-xs text-muted-2">{label}</span><b className="text-sm tabular-nums">{Number.isInteger(value) ? value : value.toFixed(1)}<span className="font-normal text-muted-2">{target == null ? "" : ` / ${target}`}</span></b></div>{target != null && <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface"><div className="h-full rounded-full bg-ink" style={{ width: `${Math.min(100, value / Math.max(target, 1) * 100)}%` }} /></div>}</div>)}</div>
+                  <form onSubmit={saveNutritionGoals} className="mt-4 rounded-2xl border border-line/70 p-3"><p className="mb-2 text-xs font-bold">Мои дневные цели</p><div className="grid grid-cols-4 gap-2">{[["Ккал", goalCalories, setGoalCalories], ["Белки", goalProtein, setGoalProtein], ["Жиры", goalFat, setGoalFat], ["Углеводы", goalCarbs, setGoalCarbs]].map(([label, value, setter]) => <label key={label as string} className="text-[10px] text-muted-2">{label as string}<input type="number" min="0" step="1" value={value as string} onChange={(event) => (setter as (v: string) => void)(event.target.value)} className="field-input mt-1 h-9 px-2 text-xs" /></label>)}</div><Pressable disabled={busy} type="submit" className="mt-2 h-9 w-full rounded-xl bg-bg text-xs font-bold">Сохранить цели</Pressable></form>
+                </section>
+                <section className="rounded-[28px] bg-surface p-4"><SectionTitle title="Что съела" right={<span className="text-xs text-muted-2">{formatDate(nutritionDate, "d MMMM")}</span>} />
+                  {dayFoodEntries.length ? <div className="divide-y divide-line/70">{dayFoodEntries.map((entry) => <div key={entry.id} className="flex items-center gap-2 py-3"><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold">{entry.name}</p><p className="text-xs text-muted-2">{entry.calories} ккал · Б {entry.protein} · Ж {entry.fat} · У {entry.carbs}</p></div><button disabled={busy} onClick={() => void run(() => deleteSportFoodEntryAction(entry.id), "Запись удалена")} aria-label={`Удалить ${entry.name}`} className="flex h-9 w-9 items-center justify-center rounded-full text-muted-2"><Trash2 size={15} /></button></div>)}</div> : <p className="py-3 text-sm text-muted-2">За этот день записей пока нет.</p>}
+                  <form onSubmit={addFoodEntry} className="mt-2 space-y-2 border-t border-line/70 pt-3"><Field label="Продукт или приём пищи"><input required value={foodName} onChange={(event) => setFoodName(event.target.value)} placeholder="Например, овсянка с бананом" className="field-input" /></Field><div className="grid grid-cols-4 gap-2">{[["Ккал", foodCalories, setFoodCalories], ["Белки, г", foodProtein, setFoodProtein], ["Жиры, г", foodFat, setFoodFat], ["Углеводы, г", foodCarbs, setFoodCarbs]].map(([label, value, setter]) => <label key={label as string} className="text-[10px] text-muted-2">{label as string}<input required type="number" min="0" step="1" value={value as string} onChange={(event) => (setter as (v: string) => void)(event.target.value)} className="field-input mt-1 h-10 px-2 text-xs" /></label>)}</div><Pressable disabled={busy} type="submit" className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-ink text-sm font-bold text-on-ink"><Plus size={16} /> Добавить запись</Pressable></form>
                 </section>
               </>
             )}

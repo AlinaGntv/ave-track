@@ -231,6 +231,31 @@ export const sportMeasurements = sqliteTable(
   (t) => [uniqueIndex("sport_measurements_profile_date_unique").on(t.profileId, t.date)],
 );
 
+/** Дневные цели и записи питания для каждого спортивного профиля. */
+export const sportNutritionGoals = sqliteTable("sport_nutrition_goals", {
+  profileId: integer("profile_id").primaryKey().references(() => sportProfiles.id, { onDelete: "cascade" }),
+  calories: integer("calories"),
+  protein: real("protein"),
+  carbs: real("carbs"),
+  fat: real("fat"),
+});
+
+export const sportFoodEntries = sqliteTable(
+  "sport_food_entries",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    profileId: integer("profile_id").notNull().references(() => sportProfiles.id, { onDelete: "cascade" }),
+    date: text("date").notNull(),
+    name: text("name").notNull(),
+    calories: integer("calories").notNull().default(0),
+    protein: real("protein").notNull().default(0),
+    carbs: real("carbs").notNull().default(0),
+    fat: real("fat").notNull().default(0),
+    createdAt: createdAt(),
+  },
+  (t) => [index("sport_food_entries_profile_date_idx").on(t.profileId, t.date, t.id)],
+);
+
 /** Потенциальные клиенты и контроль следующего контакта. */
 export const leads = sqliteTable(
   "leads",

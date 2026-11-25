@@ -5,11 +5,15 @@ import { z } from "zod";
 import {
   createSportProfile,
   createSportWorkout,
+  createSportFoodEntry,
+  deleteSportFoodEntry,
   deleteSportExercise,
   deleteSportProfile,
   markSportActivity,
+  reorderSportExercises,
   saveSportExercise,
   saveSportMeasurement,
+  saveSportNutritionGoal,
   updateSportProfile,
 } from "./server";
 
@@ -68,6 +72,11 @@ export async function deleteSportExerciseAction(exerciseId: number): Promise<voi
   refresh();
 }
 
+export async function reorderSportExercisesAction(profileId: number, dayLabel: string, exerciseIds: number[]): Promise<void> {
+  reorderSportExercises(id.parse(profileId), z.string().trim().min(1).max(30).parse(dayLabel), z.array(id).max(100).parse(exerciseIds));
+  refresh();
+}
+
 const workoutSchema = z.object({
   profileId: id,
   date,
@@ -109,5 +118,39 @@ const measurementSchema = z.object({
 
 export async function saveSportMeasurementAction(input: z.input<typeof measurementSchema>): Promise<void> {
   saveSportMeasurement(measurementSchema.parse(input));
+  refresh();
+}
+
+const nutritionGoalSchema = z.object({
+  profileId: id,
+  calories: z.number().int().min(0).max(20000).nullable(),
+  protein: nullableNumber(0, 1000),
+  carbs: nullableNumber(0, 2000),
+  fat: nullableNumber(0, 1000),
+});
+
+export async function saveSportNutritionGoalAction(input: z.input<typeof nutritionGoalSchema>): Promise<void> {
+  saveSportNutritionGoal(nutritionGoalSchema.parse(input));
+  refresh();
+}
+
+const foodEntrySchema = z.object({
+  profileId: id,
+  date,
+  name: z.string().trim().min(1).max(120),
+  calories: z.number().int().min(0).max(20000),
+  protein: z.number().min(0).max(1000),
+  carbs: z.number().min(0).max(2000),
+  fat: z.number().min(0).max(1000),
+});
+
+export async function createSportFoodEntryAction(input: z.input<typeof foodEntrySchema>): Promise<number> {
+  const entryId = createSportFoodEntry(foodEntrySchema.parse(input));
+  refresh();
+  return entryId;
+}
+
+export async function deleteSportFoodEntryAction(entryId: number): Promise<void> {
+  deleteSportFoodEntry(id.parse(entryId));
   refresh();
 }

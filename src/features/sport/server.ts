@@ -1,4 +1,4 @@
-import { asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { getDb, schema } from "@/shared/db/client";
 
 export type SportExerciseUnit = "повторов" | "минут" | "кругов";
@@ -55,6 +55,8 @@ export type SportMeasurement = {
   hipsCm: number | null;
 };
 export type SportActivity = { id: number; profileId: number; date: string; note: string | null };
+export type SportNutritionGoal = { profileId: number; calories: number | null; protein: number | null; carbs: number | null; fat: number | null };
+export type SportFoodEntry = { id: number; profileId: number; date: string; name: string; calories: number; protein: number; carbs: number; fat: number };
 
 export function getSportData() {
   const db = getDb();
@@ -79,7 +81,10 @@ export function getSportData() {
   const measurements: SportMeasurement[] = db.select().from(schema.sportMeasurements)
     .orderBy(asc(schema.sportMeasurements.date), asc(schema.sportMeasurements.id)).all();
   const activities: SportActivity[] = db.select().from(schema.sportActivityDays).all();
-  return { profiles, exercises, workouts, measurements, activities };
+  const nutritionGoals: SportNutritionGoal[] = db.select().from(schema.sportNutritionGoals).all();
+  const foodEntries: SportFoodEntry[] = db.select().from(schema.sportFoodEntries)
+    .orderBy(desc(schema.sportFoodEntries.date), desc(schema.sportFoodEntries.id)).limit(1000).all();
+  return { profiles, exercises, workouts, measurements, activities, nutritionGoals, foodEntries };
 }
 
 export function createSportProfile(input: Omit<SportProfile, "id">): number {
@@ -98,7 +103,9 @@ export function saveSportExercise(input: Omit<SportExercise, "id"> & { id: numbe
   const { id, ...values } = input;
   const table = schema.sportExercises;
   if (id == null) {
-    getDb().insert(table).values(values).run();
+    const maxOrder = getDb().select({ value: sql<number>`coalesce(max(${table.sortOrder}), -1)` }).from(table)
+      .where(and(eq(table.profileId, values.profileId), eq(table.dayLabel, values.dayLabel))).get()?.value ?? -1;
+    getDb().insert(table).values({ ...values, sortOrder: maxOrder + 1 }).run();
   } else {
     getDb().update(table).set(values).where(eq(table.id, id)).run();
   }
@@ -106,6 +113,16 @@ export function saveSportExercise(input: Omit<SportExercise, "id"> & { id: numbe
 
 export function deleteSportExercise(id: number): void {
   getDb().delete(schema.sportExercises).where(eq(schema.sportExercises.id, id)).run();
+}
+
+export function reorderSportExercises(profileId: number, dayLabel: string, exerciseIds: number[]): void {
+  const db = getDb();
+  db.transaction((tx) => {
+    exerciseIds.forEach((exerciseId, sortOrder) => {
+      tx.update(schema.sportExercises).set({ sortOrder })
+        .where(and(eq(schema.sportExercises.id, exerciseId), eq(schema.sportExercises.profileId, profileId), eq(schema.sportExercises.dayLabel, dayLabel))).run();
+    });
+  });
 }
 
 export function createSportWorkout(input: {
@@ -168,4 +185,20 @@ export function saveSportMeasurement(input: Omit<SportMeasurement, "id">): void 
       set: { weightKg: input.weightKg, chestCm: input.chestCm, waistCm: input.waistCm, hipsCm: input.hipsCm },
     })
     .run();
+}
+
+export function saveSportNutritionGoal(input: SportNutritionGoal): void {
+  const table = schema.sportNutritionGoals;
+  getDb().insert(table).values(input).onConflictDoUpdate({
+    target: table.profileId,
+    set: { calories: input.calories, protein: input.protein, carbs: input.carbs, fat: input.fat },
+  }).run();
+}
+
+export function createSportFoodEntry(input: Omit<SportFoodEntry, "id">): number {
+  return getDb().insert(schema.sportFoodEntries).values(input).returning({ id: schema.sportFoodEntries.id }).get().id;
+}
+
+export function deleteSportFoodEntry(entryId: number): void {
+  getDb().delete(schema.sportFoodEntries).where(eq(schema.sportFoodEntries.id, entryId)).run();
 }
