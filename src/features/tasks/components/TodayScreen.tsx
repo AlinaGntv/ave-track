@@ -91,9 +91,12 @@ export function TodayScreen({
         return;
       }
       const base = draftFromTask(rootTask);
-      save({ ...d, dueDate: base.dueDate, dueTime: base.dueTime, durationMinutes: base.durationMinutes }, rootTask);
       const nextDuration = d.durationMinutes ?? DEFAULT_DURATION;
       const currentDuration = task.durationMinutes ?? DEFAULT_DURATION;
+      // Изменение длительности в повторяющейся задаче обновляет базовое значение серии.
+      // Если длительность не трогали, сохраняем исходное значение серии, даже если день
+      // отображает отдельное календарное переопределение.
+      save({ ...d, dueDate: base.dueDate, dueTime: base.dueTime, durationMinutes: nextDuration !== currentDuration ? nextDuration : base.durationMinutes }, rootTask);
       if (d.dueTime && (d.dueTime !== task.dueTime || nextDuration !== currentDuration)) {
         void saveTaskCalendarOccurrenceAction({
           taskId: task.id,

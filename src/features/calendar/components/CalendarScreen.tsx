@@ -256,10 +256,11 @@ export function CalendarScreen({
 
         // Сохраняем поля задачи, не меняя базовое расписание повторов/отрезков.
         const base = draftFromTask(rootTask);
-        save({ ...d, dueDate: base.dueDate, dueTime: base.dueTime, durationMinutes: base.durationMinutes }, rootTask);
-
         const nextDuration = d.durationMinutes ?? DEFAULT_DURATION;
         const currentDuration = item.task.durationMinutes ?? DEFAULT_DURATION;
+        // Новая длительность становится базовой для будущих повторов; нетронутое
+        // переопределение текущего дня не должно перезаписывать длительность серии.
+        save({ ...d, dueDate: base.dueDate, dueTime: base.dueTime, durationMinutes: nextDuration !== currentDuration ? nextDuration : base.durationMinutes }, rootTask);
         if (d.dueTime && (d.dueTime !== item.task.dueTime || nextDuration !== currentDuration)) {
           void saveTaskCalendarOccurrenceAction({
             taskId: item.task.id,
