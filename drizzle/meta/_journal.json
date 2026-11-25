@@ -92,6 +92,13 @@
       "when": 1795585150070,
       "tag": "0012_rare_red_skull",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1795588397845,
+      "tag": "0013_chunky_black_bolt",
+      "breakpoints": true
     }
   ]
 }

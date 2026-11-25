@@ -121,6 +121,23 @@ export const moneyGoals = sqliteTable("money_goals", {
   createdAt: createdAt(),
 });
 
+/** Личные цели и покупки с дедлайном и накопленным прогрессом. */
+export const personalGoals = sqliteTable(
+  "personal_goals",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    title: text("title").notNull(),
+    description: text("description"),
+    category: text("category").notNull().default("personal"),
+    deadline: text("deadline"),
+    targetCents: integer("target_cents"),
+    savedCents: integer("saved_cents").notNull().default(0),
+    completed: integer("completed", { mode: "boolean" }).notNull().default(false),
+    createdAt: createdAt(),
+  },
+  (t) => [index("personal_goals_deadline_idx").on(t.deadline, t.completed)],
+);
+
 export const timeEntries = sqliteTable(
   "time_entries",
   {
