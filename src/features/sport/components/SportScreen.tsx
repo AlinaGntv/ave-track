@@ -340,18 +340,18 @@ export function SportScreen({ data, today }: { data: SportData; today: string })
                 <section className="rounded-[28px] bg-ink p-5 text-on-ink">
                   <div className="flex items-start justify-between gap-4">
                     <div>
-                      <p className="text-xs font-semibold text-white/65">СЛЕДУЮЩЕЕ ЗАНЯТИЕ</p>
+                      <p className="text-xs font-semibold text-on-ink-muted">СЛЕДУЮЩЕЕ ЗАНЯТИЕ</p>
                       <h2 className="mt-1 text-2xl font-bold">День {selectedDay}</h2>
-                      <p className="mt-1 text-sm text-white/70">{plan.length ? `${plan.length} упражнений · ${plan.reduce((sum, item) => sum + item.sets, 0)} подходов` : "Добавь упражнения в программу"}</p>
+                      <p className="mt-1 text-sm text-on-ink-muted">{plan.length ? `${plan.length} упражнений · ${plan.reduce((sum, item) => sum + item.sets, 0)} подходов` : "Добавь упражнения в программу"}</p>
                     </div>
-                    <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/10"><Dumbbell size={21} /></span>
+                    <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-on-ink/10"><Dumbbell size={21} /></span>
                   </div>
-                  {dayOptions.length > 1 && <div className="mt-3 flex gap-2">{dayOptions.map((day) => <button key={day} type="button" onClick={() => setDayLabel(day)} className={`h-8 rounded-full px-3 text-xs font-bold ${day === selectedDay ? "bg-white text-black" : "bg-white/10 text-white/75"}`}>День {day}</button>)}</div>}
-                  <Pressable disabled={!plan.length} onClick={startWorkout} className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-white text-sm font-bold text-black disabled:opacity-40"><Activity size={17} /> Начать тренировку</Pressable>
-                  <div className="mt-4 flex items-center justify-between text-xs text-white/75">
+                  {dayOptions.length > 1 && <div className="mt-3 flex gap-2">{dayOptions.map((day) => <button key={day} type="button" onClick={() => setDayLabel(day)} className={`h-8 rounded-full px-3 text-xs font-bold ${day === selectedDay ? "bg-on-ink text-ink" : "bg-on-ink/10 text-on-ink-muted"}`}>День {day}</button>)}</div>}
+                  <Pressable disabled={!plan.length} onClick={startWorkout} className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-on-ink text-sm font-bold text-ink disabled:opacity-40"><Activity size={17} /> Начать тренировку</Pressable>
+                  <div className="mt-4 flex items-center justify-between text-xs text-on-ink-muted">
                     <span>Тренировки за 7 дней</span><span>{weeklyWorkouts} / {weeklyTarget}</span>
                   </div>
-                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/15"><div className="h-full rounded-full bg-white" style={{ width: `${Math.min(100, weeklyWorkouts / Math.max(weeklyTarget, 1) * 100)}%` }} /></div>
+                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-on-ink/10"><div className="h-full rounded-full bg-on-ink" style={{ width: `${Math.min(100, weeklyWorkouts / Math.max(weeklyTarget, 1) * 100)}%` }} /></div>
                 </section>
                 <ActivityChart dates={activityDays} today={today} />
                 <WeightChart measurements={measurements} targetWeight={profile.targetWeightKg} />
@@ -456,12 +456,12 @@ export function SportScreen({ data, today }: { data: SportData; today: string })
                 const log = workoutLog[exercise.id] ?? { completed: false, reps: String(exercise.reps), weight: exercise.weightKg?.toString() ?? "" };
                 return <div key={exercise.id} className={`rounded-2xl p-3 ${log.completed ? "bg-ink text-on-ink" : "bg-bg"}`}>
                   <button type="button" onClick={() => setWorkoutLog((current) => ({ ...current, [exercise.id]: { ...log, completed: !log.completed } }))} className="flex w-full items-center gap-3 text-left">
-                    <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${log.completed ? "border-white bg-white text-black" : "border-current"}`}>{log.completed && <Check size={14} />}</span>
+                    <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${log.completed ? "border-on-ink bg-on-ink text-ink" : "border-current"}`}>{log.completed && <Check size={14} />}</span>
                     <span className="min-w-0 flex-1"><b className="block truncate text-sm">{exercise.title}</b><small className="opacity-70">план: {exercise.sets} × {exercise.reps} {exercise.unit}{exercise.weightKg != null ? ` · ${exercise.weightKg} кг` : ""}</small></span>
                   </button>
                   <div className="mt-2 grid grid-cols-2 gap-2 pl-9">
-                    <label className="text-[10px] font-semibold opacity-70">Факт, {exercise.unit}<input type="number" min="0" max="1000" value={log.reps} onChange={(event) => setWorkoutLog((current) => ({ ...current, [exercise.id]: { ...log, reps: event.target.value } }))} className="mt-1 h-9 w-full rounded-lg bg-white/15 px-2 text-sm text-current" /></label>
-                    <label className="text-[10px] font-semibold opacity-70">Факт, кг<input type="number" min="0" max="1000" step="0.5" value={log.weight} onChange={(event) => setWorkoutLog((current) => ({ ...current, [exercise.id]: { ...log, weight: event.target.value } }))} placeholder="—" className="mt-1 h-9 w-full rounded-lg bg-white/15 px-2 text-sm text-current" /></label>
+                    <label className="text-[10px] font-semibold opacity-70">Факт, {exercise.unit}<input type="number" min="0" max="1000" value={log.reps} onChange={(event) => setWorkoutLog((current) => ({ ...current, [exercise.id]: { ...log, reps: event.target.value } }))} className="mt-1 h-9 w-full rounded-lg bg-on-ink/10 px-2 text-sm text-current" /></label>
+                    <label className="text-[10px] font-semibold opacity-70">Факт, кг<input type="number" min="0" max="1000" step="0.5" value={log.weight} onChange={(event) => setWorkoutLog((current) => ({ ...current, [exercise.id]: { ...log, weight: event.target.value } }))} placeholder="—" className="mt-1 h-9 w-full rounded-lg bg-on-ink/10 px-2 text-sm text-current" /></label>
                   </div>
                 </div>;
               })}
@@ -503,7 +503,7 @@ function BodyFigure({ focus, onFocus }: { focus: "chest" | "waist" | "hips"; onF
       <path d="M49 44 Q62 39 75 44 L83 60 Q91 67 85 80 L79 93 L81 121 Q84 131 77 139 L83 166 L91 210 L75 213 L62 174 L49 213 L33 210 L41 166 L47 139 Q40 131 43 121 L45 93 L39 80 Q33 67 41 60 Z" fill="currentColor" className="text-muted-2" />
       <path d="M43 62 Q25 75 30 114 M81 62 Q99 75 94 114" fill="none" stroke="currentColor" className="text-muted-2" strokeWidth="9" strokeLinecap="round" />
     </svg>
-    {points.map((point) => <button key={point.key} type="button" aria-label={`Выбрать замер ${point.label}`} title={point.label} onClick={() => onFocus(point.key)} className={`absolute left-1/2 flex h-7 w-7 -translate-x-1/2 items-center justify-center rounded-full border-2 text-[9px] font-bold transition-all ${focus === point.key ? "scale-110 border-white bg-ink text-white shadow-lg" : "border-surface bg-surface/80 text-fg"}`} style={{ top: `${point.y / 230 * 100}%` }}>{point.label === "Грудь" ? "Г" : point.label === "Талия" ? "Т" : "Б"}</button>)}
+    {points.map((point) => <button key={point.key} type="button" aria-label={`Выбрать замер ${point.label}`} title={point.label} onClick={() => onFocus(point.key)} className={`absolute left-1/2 flex h-7 w-7 -translate-x-1/2 items-center justify-center rounded-full border-2 text-[9px] font-bold transition-all ${focus === point.key ? "scale-110 border-on-ink bg-ink text-on-ink shadow-lg" : "border-surface bg-surface/80 text-fg"}`} style={{ top: `${point.y / 230 * 100}%` }}>{point.label === "Грудь" ? "Г" : point.label === "Талия" ? "Т" : "Б"}</button>)}
     <span className="absolute bottom-2 text-[9px] font-semibold text-muted-2">ЖЕНСКАЯ ФИГУРА · ВИД СПЕРЕДИ</span>
   </div>;
 }

@@ -279,7 +279,7 @@ export function TimeTrackerScreen({
           <Pressable
             disabled={busy}
             onClick={toggleTimer}
-            className={`flex h-12 items-center justify-center gap-2 rounded-2xl px-6 text-sm font-bold transition-colors ${activeTimer ? "bg-white/15 text-on-ink" : "bg-white text-ink"}`}
+            className={`flex h-12 items-center justify-center gap-2 rounded-2xl px-6 text-sm font-bold transition-colors ${activeTimer ? "bg-on-ink/10 text-on-ink" : "bg-on-ink text-ink"}`}
           >
             {activeTimer ? <Square size={16} fill="currentColor" /> : <Play size={17} fill="currentColor" />}
             {activeTimer ? "Стоп" : "Старт"}
