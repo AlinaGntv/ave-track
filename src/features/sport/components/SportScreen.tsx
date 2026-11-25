@@ -72,6 +72,7 @@ export function SportScreen({ data, today }: { data: SportData; today: string })
   const router = useRouter();
   const toast = useToast();
   const [profileId, setProfileId] = useState<number | null>(data.profiles[0]?.id ?? null);
+  const profile = data.profiles.find((item) => item.id === profileId) ?? data.profiles[0] ?? null;
   const [tab, setTab] = useState<Tab>("Обзор");
   const [showProfileForm, setShowProfileForm] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -114,7 +115,6 @@ export function SportScreen({ data, today }: { data: SportData; today: string })
   const [goalCarbs, setGoalCarbs] = useState("");
   const [goalFat, setGoalFat] = useState("");
 
-  const profile = data.profiles.find((item) => item.id === profileId) ?? data.profiles[0] ?? null;
   const profileExercises = useMemo(() => data.exercises.filter((item) => item.profileId === profile?.id), [data.exercises, profile?.id]);
   const dayOptions = useMemo(() => [...new Set(profileExercises.map((item) => item.dayLabel))].sort((a, b) => a.localeCompare(b, "ru", { numeric: true })), [profileExercises]);
   const selectedDay = dayOptions.includes(dayLabel) ? dayLabel : dayOptions[0] ?? dayLabel;
