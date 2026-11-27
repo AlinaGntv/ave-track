@@ -1,20 +1,20 @@
 "use client";
 
-import { Check, Circle, Flag, Pencil, Plus, Trash2, X } from "lucide-react";
+import { Check, Circle, Flag, Heart, Pencil, Plus, Trash2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { formatDate } from "@/shared/lib/dates";
 import { Pressable } from "@/shared/ui/Pressable";
 import { ScreenHeader, SectionTitle } from "@/shared/ui/ScreenHeader";
 import { useToast } from "@/shared/ui/Toast";
-import { deletePersonalGoalAction, savePersonalGoalAction, setPersonalGoalCompletedAction } from "../actions";
-import type { PersonalGoal } from "../server";
+import { addPersonalWishAction, deletePersonalGoalAction, deletePersonalWishAction, savePersonalGoalAction, setPersonalGoalCompletedAction, setPersonalWishCompletedAction } from "../actions";
+import type { PersonalGoal, PersonalWish } from "../server";
 
 type Category = "personal" | "purchase" | "health" | "career" | "other";
 const categoryNames: Record<Category, string> = { personal: "Личное", purchase: "Покупка", health: "Здоровье", career: "Карьера", other: "Другое" };
 const amount = (cents: number, currency: string) => new Intl.NumberFormat("ru-RU", { style: "currency", currency, maximumFractionDigits: 0 }).format(cents / 100);
 
-export function GoalsScreen({ goals, today, currency }: { goals: PersonalGoal[]; today: string; currency: string }) {
+export function GoalsScreen({ goals, wishes, today, currency }: { goals: PersonalGoal[]; wishes: PersonalWish[]; today: string; currency: string }) {
   const router = useRouter();
   const toast = useToast();
   const [editing, setEditing] = useState<PersonalGoal | null>(null);
@@ -26,6 +26,8 @@ export function GoalsScreen({ goals, today, currency }: { goals: PersonalGoal[];
   const [deadline, setDeadline] = useState("");
   const [target, setTarget] = useState("");
   const [saved, setSaved] = useState("");
+  const [view, setView] = useState<"goals" | "wishes">("goals");
+  const [wishTitle, setWishTitle] = useState("");
 
   const openForm = (goal?: PersonalGoal) => {
     setEditing(goal ?? null);
@@ -58,9 +60,20 @@ export function GoalsScreen({ goals, today, currency }: { goals: PersonalGoal[];
 
   const active = goals.filter((goal) => !goal.completed);
   const completed = goals.filter((goal) => goal.completed);
+  const submitWish = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const value = wishTitle.trim();
+    if (!value) return;
+    void run(() => addPersonalWishAction(value), "Желание добавлено").then((ok) => { if (ok) setWishTitle(""); });
+  };
 
   return <>
-    <ScreenHeader caption="Планы и мечты" title="Цели" right={<Pressable onClick={() => openForm()} aria-label="Добавить цель" className="flex h-11 w-11 items-center justify-center rounded-full bg-ink text-on-ink"><Plus size={20} /></Pressable>} />
+    <ScreenHeader caption="Планы и мечты" title="Цели" right={view === "goals" ? <Pressable onClick={() => openForm()} aria-label="Добавить цель" className="flex h-11 w-11 items-center justify-center rounded-full bg-ink text-on-ink"><Plus size={20} /></Pressable> : undefined} />
+    <div className="mx-4 grid grid-cols-2 gap-1 rounded-2xl bg-surface p-1">
+      <button onClick={() => setView("goals")} className={`h-10 rounded-xl text-sm font-semibold transition-colors ${view === "goals" ? "bg-ink text-on-ink" : "text-muted-2"}`}>Цели <span className="ml-1 opacity-70">{active.length}</span></button>
+      <button onClick={() => setView("wishes")} className={`h-10 rounded-xl text-sm font-semibold transition-colors ${view === "wishes" ? "bg-ink text-on-ink" : "text-muted-2"}`}>Желания <span className="ml-1 opacity-70">{wishes.filter((wish) => !wish.completed).length}</span></button>
+    </div>
+    {view === "goals" ? <>
     {active.length > 0 && <section className="mx-4 rounded-[28px] bg-ink p-5 text-on-ink"><p className="text-xs font-semibold text-on-ink-muted">В ФОКУСЕ</p><h2 className="mt-1 text-2xl font-bold">{active.length} {active.length === 1 ? "цель" : "цели"}</h2><p className="mt-1 text-sm text-on-ink-muted">Запиши, чего хочешь достичь, и поставь дату.</p></section>}
     <SectionTitle title="В планах" right={<span className="text-xs text-muted-2">{active.length}</span>} />
     <div className="space-y-3 px-4">
@@ -77,5 +90,11 @@ export function GoalsScreen({ goals, today, currency }: { goals: PersonalGoal[];
     </div>
     {completed.length > 0 && <><SectionTitle title="Достигнуто" right={<span className="text-xs text-muted-2">{completed.length}</span>} /><div className="space-y-2 px-4">{completed.map((goal) => <article key={goal.id} className="flex items-center gap-3 rounded-[20px] bg-surface p-4 opacity-70"><button onClick={() => void run(() => setPersonalGoalCompletedAction(goal.id, false), "Цель возвращена в план") } aria-label="Вернуть в активные" className="flex h-8 w-8 items-center justify-center rounded-full bg-ink text-on-ink"><Check size={16} /></button><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold line-through">{goal.title}</p><p className="text-xs text-muted-2">{categoryNames[goal.category as Category] ?? "Другое"}{goal.targetCents != null ? ` · ${amount(goal.targetCents, currency)}` : ""}</p></div><button onClick={() => { if (window.confirm(`Удалить цель «${goal.title}»?`)) void run(() => deletePersonalGoalAction(goal.id), "Цель удалена"); }} aria-label="Удалить цель" className="flex h-9 w-9 items-center justify-center text-muted-2"><Trash2 size={15} /></button></article>)}</div></>}
     {formOpen && <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-3 sm:items-center" onClick={() => setFormOpen(false)}><section role="dialog" aria-modal="true" className="max-h-[88vh] w-full max-w-md overflow-y-auto rounded-[28px] bg-surface p-5 shadow-xl" onClick={(event) => event.stopPropagation()}><div className="mb-4 flex items-center justify-between"><h2 className="text-lg font-bold">{editing ? "Изменить цель" : "Новая цель"}</h2><button type="button" onClick={() => setFormOpen(false)} aria-label="Закрыть" className="flex h-9 w-9 items-center justify-center rounded-full bg-bg"><X size={17} /></button></div><form onSubmit={submit} className="space-y-3"><label className="flex flex-col gap-1 text-xs font-semibold text-muted-2">Название<input autoFocus required maxLength={120} value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Например, купить велосипед" className="field-input" /></label><label className="flex flex-col gap-1 text-xs font-semibold text-muted-2">Категория<select value={category} onChange={(event) => setCategory(event.target.value as Category)} className="field-input"><option value="personal">Личное</option><option value="purchase">Покупка</option><option value="health">Здоровье</option><option value="career">Карьера</option><option value="other">Другое</option></select></label><label className="flex flex-col gap-1 text-xs font-semibold text-muted-2">Дедлайн<input type="date" value={deadline} onChange={(event) => setDeadline(event.target.value)} className="field-input" /></label>{category === "purchase" && <div className="grid grid-cols-2 gap-2"><label className="flex flex-col gap-1 text-xs font-semibold text-muted-2">Стоимость<input required type="number" min="0.01" step="0.01" value={target} onChange={(event) => setTarget(event.target.value)} placeholder="0" className="field-input" /></label><label className="flex flex-col gap-1 text-xs font-semibold text-muted-2">Уже отложено<input type="number" min="0" step="0.01" value={saved} onChange={(event) => setSaved(event.target.value)} placeholder="0" className="field-input" /></label></div>}<label className="flex flex-col gap-1 text-xs font-semibold text-muted-2">Заметка<textarea rows={3} maxLength={1000} value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Зачем тебе это и что поможет прийти к цели" className="field-input resize-y py-2" /></label><Pressable disabled={busy} type="submit" className="h-11 w-full rounded-xl bg-ink text-sm font-bold text-on-ink">{editing ? "Сохранить" : "Добавить цель"}</Pressable></form></section></div>}
+    </> : <section className="mx-4 rounded-[28px] bg-surface p-4">
+      <div className="flex items-center gap-3"><span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-bg"><Heart size={20} /></span><div><h2 className="font-bold">Список желаний</h2><p className="text-xs text-muted-2">Идеи и мечты без дедлайнов</p></div></div>
+      <form onSubmit={submitWish} className="mt-4 flex gap-2"><input maxLength={180} value={wishTitle} onChange={(event) => setWishTitle(event.target.value)} placeholder="Хочу однажды…" className="field-input min-w-0 flex-1" /><Pressable type="submit" disabled={busy || !wishTitle.trim()} aria-label="Добавить желание" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-ink text-on-ink disabled:opacity-40"><Plus size={19} /></Pressable></form>
+      <div className="mt-3 divide-y divide-line/70">{wishes.map((wish) => <div key={wish.id} className="flex items-center gap-3 py-3"><button onClick={() => void run(() => setPersonalWishCompletedAction(wish.id, !wish.completed), wish.completed ? "Желание возвращено в список" : "Желание исполнено")} aria-label={wish.completed ? "Вернуть желание в список" : "Отметить исполненным"} className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${wish.completed ? "bg-ink text-on-ink" : "bg-bg text-muted-2"}`}>{wish.completed ? <Check size={16} /> : <Circle size={18} />}</button><p className={`min-w-0 flex-1 text-sm font-medium ${wish.completed ? "text-muted-2 line-through" : ""}`}>{wish.title}</p><button onClick={() => { if (window.confirm(`Удалить желание «${wish.title}»?`)) void run(() => deletePersonalWishAction(wish.id), "Желание удалено"); }} aria-label="Удалить желание" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted-2"><Trash2 size={15} /></button></div>)}</div>
+      {wishes.length === 0 && <p className="py-5 text-center text-sm text-muted-2">Пока пусто. Запиши сюда то, что хочется сделать когда-нибудь.</p>}
+    </section>}
   </>;
 }

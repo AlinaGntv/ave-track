@@ -138,6 +138,13 @@ export const personalGoals = sqliteTable(
   (t) => [index("personal_goals_deadline_idx").on(t.deadline, t.completed)],
 );
 
+export const personalWishes = sqliteTable("personal_wishes", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  title: text("title").notNull(),
+  completed: integer("completed", { mode: "boolean" }).notNull().default(false),
+  createdAt: createdAt(),
+});
+
 export const timeEntries = sqliteTable(
   "time_entries",
   {

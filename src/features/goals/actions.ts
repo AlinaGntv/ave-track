@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { deletePersonalGoal, savePersonalGoal, setPersonalGoalCompleted } from "./server";
+import { addPersonalWish, deletePersonalGoal, deletePersonalWish, savePersonalGoal, setPersonalGoalCompleted, setPersonalWishCompleted } from "./server";
 
 const id = z.number().int().positive();
 const goalSchema = z.object({
@@ -28,5 +28,21 @@ export async function setPersonalGoalCompletedAction(goalId: number, completed: 
 
 export async function deletePersonalGoalAction(goalId: number): Promise<void> {
   deletePersonalGoal(id.parse(goalId));
+  revalidatePath("/goals");
+}
+
+export async function addPersonalWishAction(title: string): Promise<number> {
+  const wishId = addPersonalWish(z.string().trim().min(1).max(180).parse(title));
+  revalidatePath("/goals");
+  return wishId;
+}
+
+export async function setPersonalWishCompletedAction(wishId: number, completed: boolean): Promise<void> {
+  setPersonalWishCompleted(id.parse(wishId), z.boolean().parse(completed));
+  revalidatePath("/goals");
+}
+
+export async function deletePersonalWishAction(wishId: number): Promise<void> {
+  deletePersonalWish(id.parse(wishId));
   revalidatePath("/goals");
 }

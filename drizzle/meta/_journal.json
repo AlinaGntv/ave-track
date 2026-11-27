@@ -99,6 +99,13 @@
       "when": 1795588397845,
       "tag": "0013_chunky_black_bolt",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1795801268472,
+      "tag": "0014_amazing_jean_grey",
+      "breakpoints": true
     }
   ]
 }
